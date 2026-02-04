@@ -1,0 +1,5 @@
+!sources/concordia/
+!docs/sources/
+!go/*.jsonl
+!docs/stories/
+!.commit.txt

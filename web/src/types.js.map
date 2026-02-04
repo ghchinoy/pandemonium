@@ -1,0 +1,1 @@
+{"version":3,"file":"types.js","sourceRoot":"","sources":["types.ts"],"names":[],"mappings":"","sourcesContent":["export interface Event {\n  type: string;\n  actor?: string;\n  message: string;\n  data?: any;\n}\n\nexport interface AgentStatus {\n  status: string;\n  isRemote: boolean;\n}\n\nexport interface AgentStates {\n    [name: string]: AgentStatus;\n  }\n  "]}

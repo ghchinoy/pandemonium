@@ -1,0 +1,9 @@
+feat: Initial release of Pandemonium v0.1.0
+
+- Core Engine: Entity-Component-System (ECS) with parallel phase execution.
+- Observability: High-fidelity "X-Ray" UI (Vite/Lit) and Bubble Tea TUI.
+- Distributed: Full A2A (Agent-to-Agent) protocol support for hybrid local/remote agents.
+- Grounding: Semantic memory via gemini-embedding-001 and native System Role steering.
+- Persistence: Flexible storage with Firestore, Local JSON, and per-agent FileStore support.
+- Scenario Management: YAML-driven scenario templates with embedded default library.
+- Quality: 100% compliant with Google Go standards (revive, errcheck, staticcheck).

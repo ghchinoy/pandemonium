@@ -1,0 +1,46 @@
+# Core Source (DeepMind & SDKs)
+sources/
+
+# Binary & OS
+bin/
+go/bin/
+*.exe
+*.test
+*.prof
+.DS_Store
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+
+# Go Dependencies & Artifacts
+go/pkg/
+vendor/
+go/*.jsonl
+go/simulation.jsonl
+
+# Web / Frontend
+web/node_modules/
+web/dist/
+.parcel-cache/
+.cache/
+
+# Beads / Issue Tracking
+# We keep issues.jsonl and metadata.json for collaboration
+.beads/beads.db
+.beads/beads.db-shm
+.beads/beads.db-wal
+.beads/daemon.lock
+.beads/daemon.log
+.beads/daemon.pid
+.beads/last-touched
+.beads/.sync.lock
+.beads/export-state/
+
+# Documentation Assets
+docs/sources/
+docs/stories/
+docs/*.dot
+# We unignore the PNGs so they are part of the first commit
+!docs/*.png
