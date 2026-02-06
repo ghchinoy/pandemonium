@@ -37,7 +37,7 @@ The `Engine` is the orchestrator. it manages the loop:
 3.  **Action**: The selected agent acts.
 4.  **Resolution**: The GM describes the result of the action.
 
-![Concordia Architecture](docs/concordia_architecture.png)
+![Concordia Architecture](concordia_architecture.png)
 
 ---
 
@@ -53,7 +53,7 @@ When an agent is asked to `act()`, it goes through a multi-phase internal proces
 3.  **POST_ACT**: The agent updates its memory with the action it just took.
 4.  **UPDATE**: Any background components (like emotional state or health) are updated based on the elapsed time.
 
-![Concordia Agent Lifecycle](docs/concordia_agent_lifecycle.png)
+![Concordia Agent Lifecycle](concordia_agent_lifecycle.png)
 
 ---
 
@@ -93,7 +93,7 @@ A famous pattern in Concordia is the **"Three Key Questions"** agent, which mirr
 2.  **Situation Perception**: "What situation am I in right now?"
 3.  **Decision**: "What would a person like me do in a situation like this?"
 
-![Concordia Three Key Questions](docs/concordia_three_key_questions.png)
+![Concordia Three Key Questions](concordia_three_key_questions.png)
 
 These are implemented as separate components.
  The "Decision" component depends on the output of the first two. This chain of reasoning makes the agent's behavior much more consistent and "human-like" than a single-shot prompt.

@@ -6,13 +6,16 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/ghchinoy/pandemonium/pkg/entity"
 	"github.com/ghchinoy/pandemonium/pkg/llm"
 	"github.com/ghchinoy/pandemonium/pkg/prefab"
 	"github.com/ghchinoy/pandemonium/pkg/types"
 	"github.com/ghchinoy/pandemonium/pkg/ui"
+	"github.com/ghchinoy/pandemonium/pkg/vector"
 	"github.com/joho/godotenv"
+	"gopkg.in/yaml.v3"
 )
 
 // MockEmbedder implements a simple identity embedder.
@@ -26,12 +29,26 @@ func main() {
 	port := flag.Int("port", 9001, "Port to host the A2A agent")
 	name := flag.String("name", "Bob", "Name of the agent")
 	persona := flag.String("persona", "A skeptical journalist investigating the storm.", "Agent persona")
+	configPath := flag.String("config", "", "Path to agent YAML config (overrides flags)")
 	flag.Parse()
 
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using system environment variables")
-	}
+	godotenv.Load()
 	ctx := context.Background()
+
+	var ac types.AgentConfig
+	ac.Name = *name
+	ac.Persona = *persona
+
+	// Load from YAML if provided
+	if *configPath != "" {
+		data, err := os.ReadFile(*configPath)
+		if err != nil {
+			log.Fatalf("Failed to read config: %v", err)
+		}
+		if err := yaml.Unmarshal(data, &ac); err != nil {
+			log.Fatalf("Failed to parse config: %v", err)
+		}
+	}
 
 	model, err := llm.NewGeminiModel(ctx)
 	if err != nil {
@@ -42,15 +59,32 @@ func main() {
 		log.Fatalf("Failed to initialize embedder: %v", err)
 	}
 
-		// 1. Initialize the local agent
+	// 1. Initialize the local agent with factory-created store
+	bus := types.NewEventBus()
+	
+	// Use the helper from prefab to create the correct store
+	// (Note: We need to expose createStore or replicate logic)
+	// For now, let's replicate or use a simple switch since we are in main.
+	
+	var store vector.Store
+	store = vector.NewMemoryStore()
+	if ac.Storage.Type == "file" {
+		if fs, err := vector.NewFileStore(ctx, ac.Storage.Path, store); err == nil {
+			store = fs
+		}
+	} else if ac.Storage.Type == "markdown" {
+		if ms, err := vector.NewMarkdownStore(ac.Storage.Path); err == nil {
+			store = ms
+		}
+	}
 
-		bus := types.NewEventBus()
+	agent := prefab.NewThreeKeyQuestionsAgent(ctx, ac.Name, ac.Persona, model, embedder, store)
 
-		agent := prefab.NewThreeKeyQuestionsAgent(ctx, *name, *persona, model, embedder, "")
+			
+
+			// CRITICAL: Set the Bus so thoughts are emitted locally
 
 		
-
-		// CRITICAL: Set the Bus so thoughts are emitted locally
 
 	
 

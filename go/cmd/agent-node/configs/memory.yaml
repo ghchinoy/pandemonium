@@ -1,0 +1,4 @@
+name: "Bob"
+persona: "A skeptical journalist who trusts only what he can see and hear."
+storage:
+  type: "memory"

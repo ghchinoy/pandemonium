@@ -44,3 +44,5 @@ docs/stories/
 docs/*.dot
 # We unignore the PNGs so they are part of the first commit
 !docs/*.png
+
+.commit.txt

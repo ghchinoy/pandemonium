@@ -134,10 +134,18 @@ func NewThreeKeyQuestionsAgent(name string, model llm.Model, db vector.Store) En
 
 ## 5. Memory & Vector Operations
 
-Go has excellent libraries for vector operations (`gonum`). 
+Pandemonium treats agent storage as a **pluggable strategy**. This allows the simulation to balance performance, auditability, and scale.
 
-*   **Interface**: Define a `VectorStore` interface so users can swap between an in-memory `map` (for small sims) and something like `Chroma` or `Pinecone` (for long-running ones).
-*   **Embeddings**: Handle LLM embeddings as a middleware service.
+### The Storage Factory
+Instead of a hardcoded vector store, the **Scenario Loader** uses a factory pattern to instantiate the appropriate store per agent:
+
+- **MemoryStore (Gonum)**: High-performance, in-memory matrix operations for fast associative search.
+- **MarkdownStore (Audit)**: Appends observations to human-readable `.md` files. Ideal for "Long Context" models where the entire history is sent to the LLM.
+- **FileStore (JSONL)**: Persistent JSONL backing for the MemoryStore, allowing agents to "remember" between simulation restarts.
+- **VertexVectorStore (Cloud)**: Scalable search for simulations with millions of memories.
+
+### Performance vs. Context
+By supporting multiple strategies, Pandemonium caters to both traditional RAG-based architectures (Associative) and modern Long-Context models (Timeline/Markdown).
 
 ---
 
