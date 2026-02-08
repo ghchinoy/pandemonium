@@ -32,7 +32,9 @@ func main() {
 	configPath := flag.String("config", "", "Path to agent YAML config (overrides flags)")
 	flag.Parse()
 
-	godotenv.Load()
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using system environment variables")
+	}
 	ctx := context.Background()
 
 	var ac types.AgentConfig
@@ -62,17 +64,14 @@ func main() {
 	// 1. Initialize the local agent with factory-created store
 	bus := types.NewEventBus()
 	
-	// Use the helper from prefab to create the correct store
-	// (Note: We need to expose createStore or replicate logic)
-	// For now, let's replicate or use a simple switch since we are in main.
-	
 	var store vector.Store
 	store = vector.NewMemoryStore()
-	if ac.Storage.Type == "file" {
+	switch ac.Storage.Type {
+	case "file":
 		if fs, err := vector.NewFileStore(ctx, ac.Storage.Path, store); err == nil {
 			store = fs
 		}
-	} else if ac.Storage.Type == "markdown" {
+	case "markdown":
 		if ms, err := vector.NewMarkdownStore(ac.Storage.Path); err == nil {
 			store = ms
 		}

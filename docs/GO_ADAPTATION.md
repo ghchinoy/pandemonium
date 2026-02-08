@@ -325,9 +325,33 @@ With the advent of large context windows (1M+ tokens), Pandemonium diverges from
 ### The Hybrid Approach
 Standard Pandemonium agents are encouraged to use **both**. The Timeline provides the "Short-term" facts, while the Associative store provides "Long-term" intuition.
 
+### Phase 6: Advanced Simulation Engines
+- **Goal**: Port complex orchestration patterns from Concordia.
+- **Focus**: Concurrent multi-actor turns, Multiple GMs, and Real-time asynchronous loops.
+
 ---
 
-## 17. Key Advantages of a Go Version
+## 18. Advanced Orchestration Engines
+
+Pandemonium supports multiple engine types to facilitate different research and simulation goals:
+
+### Sequential (The Narrative default)
+The standard turn-based loop where one agent acts at a time. Ideal for deep narrative and focused social interactions.
+
+### Simultaneous (The Competitive default)
+Allows multiple agents to act concurrently within a single step. 
+- **Aggregation**: The Game Master receives all agent actions as a single combined context for world resolution.
+- **Concurrency**: Leverages Go's goroutines to parallelize the "Internal Monologues" of all active agents.
+
+### Ticker (The Real-Time Engine)
+A clock-driven loop where agents act asynchronously based on their "reaction time" or events in the environment. This moves the simulation from a discrete "Board Game" style to a continuous "Digital Twin" style.
+
+### GM Switcher
+Support for multiple Game Masters, allowing the engine to select different "Rule Sets" (GM Entities) based on the simulation's current state.
+
+---
+
+## 19. Key Advantages of a Go Version
 
 1.  **Strict Typing**: Prevents common "stringly-typed" errors in complex component interactions.
 2.  **Performance**: Handling 100+ agents in a simultaneous engine will be significantly faster and use less memory than the Python equivalent.
