@@ -61,4 +61,6 @@
 # - github.org
 # - github.repo
 
-sync.remote: "git+ssh://git@github.com/ghchinoy/pandemonium.git"
+# sync.remote: "git+ssh://git@github.com/ghchinoy/pandemonium.git"
+dolt:
+    local-only: true
