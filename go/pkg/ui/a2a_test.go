@@ -3,14 +3,18 @@ package ui_test
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/a2aproject/a2a-go/a2a"
-	"github.com/a2aproject/a2a-go/a2aclient"
-	"github.com/a2aproject/a2a-go/a2asrv"
+	"github.com/a2aproject/a2a-go/v2/a2a"
+	"github.com/a2aproject/a2a-go/v2/a2aclient"
+	"github.com/a2aproject/a2a-go/v2/a2asrv"
 	"github.com/ghchinoy/pandemonium/pkg/entity"
 	"github.com/ghchinoy/pandemonium/pkg/types"
 	"github.com/ghchinoy/pandemonium/pkg/ui"
@@ -48,11 +52,6 @@ func TestA2AServerAndProxyInteraction(t *testing.T) {
 	}
 	mux.Handle(a2asrv.WellKnownAgentCardPath, a2asrv.NewStaticAgentCardHandler(card))
 
-	server := httptest.Server{
-		Config: &http.Server{Handler: mux},
-	}
-	l, err := server.Config.ConnState == nil, error(nil)
-	_ = l
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
@@ -104,5 +103,63 @@ func TestA2AServerAndProxyInteraction(t *testing.T) {
 	}
 	if action != "I inspect the room." {
 		t.Fatalf("Unexpected action returned: %q", action)
+	}
+}
+
+func TestA2ACLIIntegration(t *testing.T) {
+	absPath, err := filepath.Abs("../../../../a2acli/bin/a2acli")
+	if err != nil {
+		t.Skip("Failed to resolve a2acli path")
+	}
+	cliPath, err := exec.LookPath(absPath)
+	if err != nil {
+		t.Skipf("a2acli binary not found at %s, skipping CLI integration test", absPath)
+	}
+
+	bus := types.NewEventBus()
+	mock := &mockEntity{name: "PandemoniumCLIEntity", act: "I am responding to a2acli."}
+
+	executor := &ui.EntityExecutor{Entity: mock, Bus: bus}
+	handler := a2asrv.NewHandler(executor)
+
+	mux := http.NewServeMux()
+	mux.Handle("/", a2asrv.NewJSONRPCHandler(handler))
+
+	card := &a2a.AgentCard{
+		Name:        mock.Name(),
+		Description: fmt.Sprintf("Pandemonium Agent: %s", mock.Name()),
+		SupportedInterfaces: []*a2a.AgentInterface{
+			a2a.NewAgentInterface("http://127.0.0.1:9099/", a2a.TransportProtocolJSONRPC),
+		},
+		Capabilities: a2a.AgentCapabilities{Streaming: true},
+	}
+	mux.Handle(a2asrv.WellKnownAgentCardPath, a2asrv.NewStaticAgentCardHandler(card))
+
+	l, err := net.Listen("tcp", "127.0.0.1:9099")
+	if err != nil {
+		t.Fatalf("Failed to listen on 9099: %v", err)
+	}
+	srv := &http.Server{Handler: mux}
+	go srv.Serve(l)
+	defer srv.Close()
+
+	// 1. Test a2acli discover
+	cmdDiscover := exec.Command(cliPath, "discover", "--service-url", "http://127.0.0.1:9099", "--output", "json")
+	outDiscover, err := cmdDiscover.CombinedOutput()
+	if err != nil {
+		t.Fatalf("a2acli discover failed: %v\nOutput: %s", err, string(outDiscover))
+	}
+	if !strings.Contains(string(outDiscover), "PandemoniumCLIEntity") {
+		t.Fatalf("a2acli discover output missing entity name: %s", string(outDiscover))
+	}
+
+	// 2. Test a2acli send
+	cmdSend := exec.Command(cliPath, "send", "Hello from a2acli!", "--service-url", "http://127.0.0.1:9099", "--wait", "--output", "json")
+	outSend, err := cmdSend.CombinedOutput()
+	if err != nil {
+		t.Fatalf("a2acli send failed: %v\nOutput: %s", err, string(outSend))
+	}
+	if !strings.Contains(string(outSend), "I am responding to a2acli.") {
+		t.Fatalf("a2acli send output missing expected response: %s", string(outSend))
 	}
 }

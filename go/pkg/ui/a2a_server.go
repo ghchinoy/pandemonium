@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/a2aproject/a2a-go/a2a"
-	"github.com/a2aproject/a2a-go/a2asrv"
+	"github.com/a2aproject/a2a-go/v2/a2a"
+	"github.com/a2aproject/a2a-go/v2/a2asrv"
 	"github.com/ghchinoy/pandemonium/pkg/types"
 )
 
