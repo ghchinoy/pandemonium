@@ -15,7 +15,7 @@ Pandemonium is a high-performance, concurrent Go implementation of the **Concord
     - **JSONL**: Persistent event logging for post-simulation analysis.
 - **Grounding & Memory**: Built-in associative memory and immutable "World Facts" to prevent narrative drift.
 
-![Pandemonium Architecture](docs/pandemonium_architecture.png)
+![Pandemonium Architecture](docs/pandemonium_architecture.webp)
 
 ---
 
