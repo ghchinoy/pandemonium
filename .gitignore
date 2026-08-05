@@ -15,7 +15,6 @@ go/bin/
 !.env.example
 
 # Go Dependencies & Artifacts
-go/pkg/
 vendor/
 go/*.jsonl
 go/simulation.jsonl
@@ -46,3 +45,10 @@ docs/*.dot
 !docs/*.png
 
 .commit.txt
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
+*.gate.lock*

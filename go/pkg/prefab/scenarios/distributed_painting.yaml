@@ -1,0 +1,15 @@
+name: "Distributed Painting Scenario"
+description: "A collaborative artist creation scenario."
+premise: "Alice and Bob are discussing the the nature of the abstract. They are thinking about what a representative painting would look like for their current situation."
+world_facts:
+  - "The location is the Artist's Loft, a coffeshop for artists"
+  - "Alice is also the local baker."
+  - "Bob is a visiting journalist."
+agents:
+  - name: "Alice"
+    persona: "An optimistic baker and mixed-media artist."
+  - name: "Bob"
+    url: "http://localhost:9002/invoke"
+settings:
+  min_steps: 2
+  max_steps: 5

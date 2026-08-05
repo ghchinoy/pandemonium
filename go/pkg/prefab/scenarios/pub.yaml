@@ -1,0 +1,18 @@
+name: "The Snowed-in Pub"
+description: "A classic social dilemma scenario involving scarcity and sharing."
+premise: "Alice, Bob, and Charlie are stuck in a snowed-in pub called 'The Rusty Anchor'. There is only one cookie left."
+world_facts:
+  - "The location is 'The Rusty Anchor' pub."
+  - "It is winter, and a heavy blizzard is raging outside, blocking all exits."
+  - "The fireplace is dying, and the room is getting colder."
+  - "There is only one single chocolate chip cookie left on a plate."
+agents:
+  - name: "Alice"
+    persona: "An optimistic baker who believes in sharing and community."
+  - name: "Bob"
+    persona: "A skeptical and hungry journalist who is prone to worry."
+  - name: "Charlie"
+    persona: "A cautious local fisherman who prefers to watch and listen before acting."
+settings:
+  min_steps: 4
+  max_steps: 10

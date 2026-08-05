@@ -49,7 +49,15 @@ go/pkg/prefab/scenarios/ # Built-in simulation YAML templates
    # Add your GOOGLE_CLOUD_PROJECT and optional GOOGLE_GENAI_API_KEY
    ```
 
-2. **Run a Simulation**:
+2. **Build Web Frontend** (optional, for Web UI support):
+   ```bash
+   cd web
+   npm install
+   npm run build
+   cd ..
+   ```
+
+3. **Run a Simulation**:
    ```bash
    cd go
    go run cmd/pandemonium/main.go -log sim.jsonl

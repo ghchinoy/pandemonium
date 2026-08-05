@@ -1,0 +1,15 @@
+name: "Distributed Pub Scenario"
+description: "A hybrid simulation where Alice is local and Bob is a remote A2A agent."
+premise: "Alice and Bob are discussing the storm in 'The Rusty Anchor'. Bob is connected via a remote A2A node."
+world_facts:
+  - "The location is 'The Rusty Anchor' pub."
+  - "Alice is the local baker."
+  - "Bob is a visiting journalist."
+agents:
+  - name: "Alice"
+    persona: "An optimistic baker."
+  - name: "Bob"
+    url: "http://localhost:9001/invoke"
+settings:
+  min_steps: 2
+  max_steps: 5
