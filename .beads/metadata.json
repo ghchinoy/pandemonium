@@ -1,4 +1,8 @@
 {
-  "database": "beads.db",
-  "jsonl_export": "issues.jsonl"
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_server_port": 63491,
+  "dolt_database": "beads_pandemonium",
+  "project_id": "de762b8b-0915-4306-bc40-3dd95b25caaa"
 }
