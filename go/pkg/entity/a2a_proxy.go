@@ -25,7 +25,7 @@ type A2AProxyEntity struct {
 // NewA2AProxyEntity initializes a remote agent proxy.
 func NewA2AProxyEntity(ctx context.Context, name, url string, bus *types.EventBus) (*A2AProxyEntity, error) {
 	baseURL := strings.TrimSuffix(url, "/invoke")
-	
+
 	// Connectivity Check: Fetch the public Agent Card via standard HTTP
 	// This ensures the server is up and identifies as an A2A agent.
 	checkURL := fmt.Sprintf("%s/.well-known/agent-card.json", baseURL)
@@ -43,10 +43,10 @@ func NewA2AProxyEntity(ctx context.Context, name, url string, bus *types.EventBu
 
 	// Create client with JSON-RPC transport
 	factory := a2aclient.NewFactory(a2aclient.WithJSONRPCTransport(nil))
-	endpoints := []a2a.AgentInterface{
-		{Transport: a2a.TransportProtocolJSONRPC, URL: url},
+	endpoints := []*a2a.AgentInterface{
+		a2a.NewAgentInterface(url, a2a.TransportProtocolJSONRPC),
 	}
-	
+
 	client, err := factory.CreateFromEndpoints(ctx, endpoints)
 	if err != nil {
 		return nil, fmt.Errorf("initializing A2A client for %s: %w", name, err)
@@ -76,15 +76,21 @@ func (e *A2AProxyEntity) Name() string { return e.EntityName }
 
 // Observe sends a message to the remote agent.
 func (e *A2AProxyEntity) Observe(ctx context.Context, observation string) error {
-	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: observation})
+	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.NewTextPart(observation))
 	msg.ContextID = e.ContextID
 
-	params := &a2a.MessageSendParams{
+	meta := make(map[string]any)
+	for k, v := range e.Metadata {
+		meta[k] = v
+	}
+	meta["type"] = "observation"
+
+	req := a2a.SendMessageRequest{
 		Message:  msg,
-		Metadata: e.Metadata,
+		Metadata: meta,
 	}
 
-	_, err := e.Client.SendMessage(ctx, params)
+	_, err := e.Client.SendMessage(ctx, &req)
 	if err != nil {
 		return fmt.Errorf("sending observation to %s: %w", e.EntityName, err)
 	}
@@ -93,21 +99,21 @@ func (e *A2AProxyEntity) Observe(ctx context.Context, observation string) error 
 
 // Act triggers a task-based action on the remote agent.
 func (e *A2AProxyEntity) Act(ctx context.Context, spec types.ActionSpec) (string, error) {
-	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: spec.CallToAction})
+	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.NewTextPart(spec.CallToAction))
 	msg.ContextID = e.ContextID
 
-	params := &a2a.MessageSendParams{
+	req := a2a.SendMessageRequest{
 		Message:  msg,
 		Metadata: e.Metadata,
 	}
 
 	// Use SendStreamingMessage for stateful/task-based interactions
-	stream := e.Client.SendStreamingMessage(ctx, params)
+	stream := e.Client.SendStreamingMessage(ctx, &req)
 
 	var finalAction string
 	reasoning := make(map[string]string)
 
-	// Process the event stream using Go 1.23 iterator
+	// Process the event stream using Go iterator
 	for ev, err := range stream {
 		if err != nil {
 			return "", fmt.Errorf("A2A stream error: %w", err)
@@ -116,27 +122,38 @@ func (e *A2AProxyEntity) Act(ctx context.Context, spec types.ActionSpec) (string
 		switch te := ev.(type) {
 		case *a2a.TaskStatusUpdateEvent:
 			if te.Status.Message != nil {
-				e.emitThought(fmt.Sprintf("Status: %s", te.Status.State))
+				for _, part := range te.Status.Message.Parts {
+					if t := part.Text(); t != "" {
+						finalAction = t
+					}
+				}
 			}
 		case *a2a.TaskArtifactUpdateEvent:
 			if te.Artifact != nil {
 				for _, part := range te.Artifact.Parts {
-					if tp, ok := part.(a2a.TextPart); ok {
-						reasoning[te.Artifact.Name] = tp.Text
+					if t := part.Text(); t != "" {
+						reasoning[te.Artifact.Name] = t
 					}
 				}
 			}
 		case *a2a.Message:
 			for _, part := range te.Parts {
-				if tp, ok := part.(a2a.TextPart); ok {
-					finalAction = tp.Text
+				if t := part.Text(); t != "" {
+					finalAction = t
 				}
 			}
 		case *a2a.Task:
+			if te.Status.Message != nil {
+				for _, part := range te.Status.Message.Parts {
+					if t := part.Text(); t != "" {
+						finalAction = t
+					}
+				}
+			}
 			for _, art := range te.Artifacts {
 				for _, part := range art.Parts {
-					if tp, ok := part.(a2a.TextPart); ok {
-						reasoning[art.Name] = tp.Text
+					if t := part.Text(); t != "" {
+						reasoning[art.Name] = t
 					}
 				}
 			}
