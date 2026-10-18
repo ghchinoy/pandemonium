@@ -2,13 +2,13 @@
 
 This guide examines how **Pandemonium** (generative social simulation and Entity-Component-System cognition), **A2A v2** (the Agent-to-Agent wire protocol), and **AX** (declarative sandboxed task, workspace, and model orchestration on Agent Substrate) fit together as three complementary layers of a single distributed agent stack.
 
-![Pandemonium, A2A v2, and AX Layered Architecture](pandemonium_ax_a2a.webp)
-
 ---
 
 ## 1. Architectural Layering: Why They Complement Each Other
 
 Pandemonium, A2A, and AX operate at distinct architectural abstractions with no overlapping responsibilities:
+
+![Three-Layer Stack: Pandemonium, A2A v2, and AX](pandemonium_ax_stack.webp)
 
 | Layer | System | Primary Abstraction | What It Owns | What It Delegates |
 | :--- | :--- | :--- | :--- | :--- |
@@ -21,6 +21,8 @@ Pandemonium, A2A, and AX operate at distinct architectural abstractions with no 
 ## 2. The A2A Protocol Perspective: The Bridge Between Mind and Sandbox
 
 The **A2A v2** protocol is the linchpin that allows Pandemonium and AX to interoperate with **zero Go module coupling** between the two repositories:
+
+![Pandemonium, A2A v2, and AX Runtime Dataflow](pandemonium_ax_a2a.webp)
 
 1. **Self-Describing Sandboxes (`AgentCard`)**:
    - An AX `Task` running `cmd/agent-node` publishes its capabilities at `/.well-known/agent-card.json`.

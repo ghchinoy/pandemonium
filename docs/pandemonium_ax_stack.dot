@@ -1,0 +1,41 @@
+// Three-layer architectural stack: Pandemonium (Layer 3), A2A v2 (Layer 2), and AX (Layer 1).
+digraph PandemoniumAXStack {
+  label = "Architectural stack · Pandemonium · A2A v2 · AX";
+  rankdir = TB;
+  ranksep = 0.55;
+  nodesep = 0.4;
+  newrank = true;
+
+  subgraph cluster_Layer3 {
+    label = "Layer 3 · Cognitive & Social Orchestration — Pandemonium (Concordia in Go)";
+    World   [label="World & Scenario Loop\nGame Master · Premise · StepController", class="agent-violet"];
+    Engines [label="Orchestration Engines\nSequential · Simultaneous · Async · RulebookGM", class="primary"];
+    Mind    [label="Agent Mind (ECS)\nMemory · Timeline · Reflection · 3 Key Questions", class="agent-blue"];
+    {rank=same; World; Engines; Mind;}
+  }
+
+  subgraph cluster_Layer2 {
+    label = "Layer 2 · Inter-Agent Wire Protocol — A2A v2 (a2a-go/v2 + a2acli)";
+    class = "accent";
+    Discovery [label="Capability Discovery\n/.well-known/agent-card.json", class="note code"];
+    Transport [label="Streaming JSON-RPC\nSendMessage (Observe) · SendStreamingMessage (Act)", class="emphasis"];
+    Trace     [label="Session & Trace Tunnel\nContextID · step_id · TaskArtifactUpdateEvent", class="code"];
+    {rank=same; Discovery; Transport; Trace;}
+  }
+
+  subgraph cluster_Layer1 {
+    label = "Layer 1 · Compute, Sandbox & Workspace Substrate — AX (Agent Substrate / ate-local)";
+    Task      [label="Task Sandbox\nApple container / gVisor · Suspend & Resume · ax ssh", class="agent-teal"];
+    Workspace [label="Durable Workspace\n/workspace · Git · MCP Servers · Skills", class="store"];
+    Routing   [label="Actor Routing & Model\natenet-router (ate-target-actor) · Model Secrets", class="code"];
+    {rank=same; Task; Workspace; Routing;}
+  }
+
+  World -> Discovery   [style=invis];
+  Engines -> Transport [label="A2AProxyEntity / EntityExecutor", class="primary"];
+  Mind -> Trace        [label="PreAct thoughts", class="async"];
+
+  Discovery -> Routing [style=invis];
+  Transport -> Task    [label="ate-target-actor / vmnet IP", class="primary"];
+  Trace -> Workspace   [label="persists JSONL / Markdown", class="async"];
+}
