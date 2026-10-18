@@ -16,7 +16,7 @@ Pandemonium is a high-performance, concurrent Go implementation of Google DeepMi
     - **Web Command Center**: Decoupled Lit frontend (`:8080`) with Play/Pause/Step/Stop `StepController` debugging, scenario launching, and live Trace Inspector via WebSockets & REST.
     - **JSONL & Checkpoints**: Persistent JSONL event traces (`-log`) and JSON step-boundary checkpointing (`-checkpoint` / `-resume`).
 
-![Pandemonium Architecture](docs/pandemonium_architecture.webp)
+![Pandemonium Architecture](docs/images/pandemonium_architecture.webp)
 
 ---
 

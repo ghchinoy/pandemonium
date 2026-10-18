@@ -4,7 +4,7 @@ In this tutorial, you will combine **Pandemonium**, **A2A v2**, and **AX** (`~/p
 
 For the full architectural breakdown across all three integration perspectives, see [Combining Pandemonium, A2A v2, and AX](../AX_A2A_INTEGRATION.md).
 
-![Pandemonium, A2A v2, and AX Layered Architecture](../pandemonium_ax_a2a.webp)
+![Pandemonium, A2A v2, and AX Layered Architecture](../images/pandemonium_ax_a2a.webp)
 
 ---
 

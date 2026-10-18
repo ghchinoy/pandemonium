@@ -8,7 +8,7 @@ This guide examines how **Pandemonium** (generative social simulation and Entity
 
 Pandemonium, A2A, and AX operate at distinct architectural abstractions with no overlapping responsibilities:
 
-![Three-Layer Stack: Pandemonium, A2A v2, and AX](pandemonium_ax_stack.webp)
+![Three-Layer Stack: Pandemonium, A2A v2, and AX](images/pandemonium_ax_stack.webp)
 
 | Layer | System | Primary Abstraction | What It Owns | What It Delegates |
 | :--- | :--- | :--- | :--- | :--- |
@@ -22,7 +22,7 @@ Pandemonium, A2A, and AX operate at distinct architectural abstractions with no 
 
 The **A2A v2** protocol is the linchpin that allows Pandemonium and AX to interoperate with **zero Go module coupling** between the two repositories:
 
-![Pandemonium, A2A v2, and AX Runtime Dataflow](pandemonium_ax_a2a.webp)
+![Pandemonium, A2A v2, and AX Runtime Dataflow](images/pandemonium_ax_a2a.webp)
 
 1. **Self-Describing Sandboxes (`AgentCard`)**:
    - An AX `Task` running `cmd/agent-node` publishes its capabilities at `/.well-known/agent-card.json`.

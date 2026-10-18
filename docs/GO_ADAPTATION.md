@@ -48,7 +48,7 @@ type ContextComponent interface {
 
 Concordia uses specific phases (`PRE_ACT`, `POST_ACT`, `UPDATE`). In Go, we can implement this using a `BaseEntity` struct and goroutines.
 
-![Agent Component Flow](pandemonium_agent_flow.webp)
+![Agent Component Flow](images/pandemonium_agent_flow.webp)
 
 ### Parallel Phase Execution
 Because components are often independent (e.g., retrieving memory vs. checking goals), we can use goroutines and `sync.WaitGroup` or `errgroup` for performance.
@@ -272,7 +272,7 @@ Pandemonium supports distributed simulations where agents can be hosted as stand
 ### Remote Entity Proxy (The Stub Pattern)
 Remote agents are integrated using an `A2AProxyEntity` which implements the `Entity` interface but delegates all calls to a remote URL. The engine remains agnostic to whether an agent is local or remote.
 
-![Distributed A2A Flow](pandemonium_a2a_flow.webp)
+![Distributed A2A Flow](images/pandemonium_a2a_flow.webp)
 
 ### Conceptual Correlation Mapping
 

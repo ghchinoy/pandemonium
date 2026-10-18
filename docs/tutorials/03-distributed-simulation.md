@@ -2,7 +2,7 @@
 
 In this tutorial, you will run a **hybrid distributed simulation** (`distributed_pub.yaml`) where **Alice** runs in-process inside the orchestrator while **Bob** runs in a separate OS process over the **A2A v2** protocol.
 
-![Distributed A2A Flow](../pandemonium_a2a_flow.webp)
+![Distributed A2A Flow](../images/pandemonium_a2a_flow.webp)
 
 ---
 
