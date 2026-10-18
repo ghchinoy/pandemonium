@@ -2,7 +2,7 @@
 
 This guide describes how to use [`a2acli`](https://github.com/ghchinoy/a2acli) alongside Pandemonium to inspect, test, debug, and mock A2A (Agent-to-Agent) services in generative social simulations.
 
-Both **Pandemonium** and **a2acli** are aligned on the **`a2a-go/v2` SDK** (`v2.4.0`), providing full wire and schema compatibility over the A2A v1.0 protocol specification.
+Both **Pandemonium** and **a2acli** are aligned on the **`a2a-go/v2` SDK** (`v2.6.0`, Go `1.26`), providing full wire and schema compatibility over the A2A v1.0 protocol specification.
 
 ---
 

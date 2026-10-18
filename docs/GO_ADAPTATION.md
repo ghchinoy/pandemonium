@@ -34,10 +34,10 @@ type Component interface {
 
 type ContextComponent interface {
 	Component
-	PreAct(ctx context.Context, spec ActionSpec) (string, error)
-	PostAct(ctx context.Context, action string) error
+	PreAct(ctx context.Context, spec types.ActionSpec) (string, error)
+	PostAct(ctx context.Context, actionAttempt string) (string, error)
 	PreObserve(ctx context.Context, observation string) (string, error)
-	PostObserve(ctx context.Context) error
+	PostObserve(ctx context.Context) (string, error)
 	Update(ctx context.Context) error
 }
 ```
@@ -54,28 +54,33 @@ Concordia uses specific phases (`PRE_ACT`, `POST_ACT`, `UPDATE`). In Go, we can 
 Because components are often independent (e.g., retrieving memory vs. checking goals), we can use goroutines and `sync.WaitGroup` or `errgroup` for performance.
 
 ```go
-func (e *BaseEntity) Act(ctx context.Context, spec ActionSpec) (string, error) {
+func (e *BaseEntity) Act(ctx context.Context, spec types.ActionSpec) (string, error) {
 	// 1. PRE_ACT Phase (Parallel)
-	contexts, err := e.callParallel(ctx, func(c ContextComponent) (string, error) {
+	contexts, err := e.runPhase(ctx, func(c component.ContextComponent) (string, error) {
 		return c.PreAct(ctx, spec)
 	})
 	if err != nil {
 		return "", err
 	}
 
-	// 2. GET_ACTION (The "Brain")
-	action, err := e.Brain.GetAction(ctx, contexts, spec)
+	// 2. GET_ACTION (The ActingComponent)
+	action, err := e.ActComponent.GetActionAttempt(ctx, contexts, spec)
 	if err != nil {
 		return "", err
 	}
 
 	// 3. POST_ACT Phase (Parallel)
-	_, err = e.callParallel(ctx, func(c ContextComponent) (string, error) {
+	_, err = e.runPhase(ctx, func(c component.ContextComponent) (string, error) {
 		return c.PostAct(ctx, action)
 	})
-	
-	// 4. UPDATE Phase
-	// ... similar logic ...
+	if err != nil {
+		return "", err
+	}
+
+	// 4. UPDATE Phase (Parallel)
+	if err := e.update(ctx); err != nil {
+		return "", err
+	}
 
 	return action, nil
 }
@@ -88,18 +93,21 @@ func (e *BaseEntity) Act(ctx context.Context, spec ActionSpec) (string, error) {
 To encourage reuse and clear separation of concerns, follow a package-based structure:
 
 ```text
-pandemonium/
-├── cmd/                # Example binaries
-├── pkg/
-│   ├── engine/         # Simulation loops (Sequential, Simultaneous)
-│   ├── entity/         # BaseEntity and common logic
-│   ├── component/      # Reusable building blocks
-│   │   ├── memory/     # Associative memory implementations
-│   │   ├── observation/# Buffer management
-│   │   └── thought/    # "Three Key Questions" logic
-│   ├── prefab/         # Pre-wired configurations (Alice, GM, etc.)
-│   ├── llm/            # LLM clients (OpenAI, Anthropic, Gemini)
-│   └── vector/         # Vector store interfaces and implementations
+go/
+├── cmd/
+│   ├── pandemonium/    # Orchestrator CLI binary
+│   └── agent-node/     # Standalone A2A agent microservice
+└── pkg/
+    ├── types/          # Core interfaces, EventBus, and Scenario config
+    ├── engine/         # Simulation loops (Sequential)
+    ├── entity/         # BaseEntity and remote A2AProxyEntity
+    ├── component/      # Reusable building blocks (Constant, Dynamic)
+    │   └── memory/     # AssociativeMemory and TimelineMemory
+    ├── prefab/         # Pre-wired configurations (ThreeKeyQuestions, Loader)
+    ├── llm/            # Gemini / Vertex AI model & embedder clients
+    ├── store/          # Operational state stores (LocalStore, FirestoreStore)
+    ├── vector/         # Vector store interfaces and implementations
+    └── ui/             # Bubble Tea TUI, WebSocket server, and A2A server
 ```
 
 ---
@@ -110,22 +118,32 @@ In Go, "Prefabs" are best implemented as **Constructor Functions** or **Function
 
 ### The Constructor Pattern
 ```go
-// NewThreeKeyQuestionsAgent builds a standard agent with the famous reasoning chain.
-func NewThreeKeyQuestionsAgent(name string, model llm.Model, db vector.Store) Entity {
-	mem := memory.NewAssociativeMemory(db)
-	obs := observation.NewLastN(10)
-	
-	components := map[string]ContextComponent{
-		"Memory": mem,
-		"History": obs,
-		"Self": thought.NewSelfPerception(model),
-		"Situation": thought.NewSituationPerception(model),
+// NewThreeKeyQuestionsAgent builds the standard reasoning agent.
+func NewThreeKeyQuestionsAgent(_ context.Context, name string, persona string, model llm.Model, embedder vector.Embedder, store vector.Store) types.Entity {
+	mem := &memory.AssociativeMemory{Store: store, Embedder: embedder, K: 5}
+	timeline := memory.NewTimelineMemory("Timeline", 10)
+
+	components := map[string]component.ContextComponent{
+		"Instructions": &component.Constant{CompName: "Instructions", Value: persona},
+		"Memory":       mem,
+		"Timeline":     timeline,
+		"SelfPerception": &component.DynamicContextComponent{
+			CompName: "SelfPerception",
+			Prompt:   fmt.Sprintf("Based on your persona and recent memories, who are you? Persona: %s", persona),
+			Model:    model,
+		},
+		"SituationPerception": &component.DynamicContextComponent{
+			CompName: "SituationPerception",
+			Prompt:   "Based on recent observations, what kind of situation are you in right now? Describe it in one sentence.",
+			Model:    model,
+		},
 	}
 
+	order := []string{"Instructions", "Memory", "Timeline", "SelfPerception", "SituationPerception"}
 	return &entity.BaseEntity{
-		EntityName: name,
-		Components: components,
-		Brain:      brain.NewConcatBrain(model),
+		EntityName:   name,
+		Components:   components,
+		ActComponent: &ConcatActComponent{Model: model, ComponentOrder: order},
 	}
 }
 ```
@@ -274,7 +292,7 @@ Pandemonium utilizes a **Dual-Persistence** model to balance cognitive realism w
 
 ---
 
-## 11. Multi-Tenant Orchestration
+## 12. Multi-Tenant Orchestration
 
 Moving from a CLI tool to a Platform requires a **Simulation Manager**:
 - **Lifecycle**: Spawns and kills simulation goroutines.
@@ -308,7 +326,7 @@ Pandemonium iterates on Concordia's memory bank concepts through a multi-stage t
 
 ---
 
-## 16. Context Curation vs. Associative Recall
+## 15. Context Curation vs. Associative Recall
 
 With the advent of large context windows (1M+ tokens), Pandemonium diverges from early RAG patterns by supporting two distinct memory strategies:
 
@@ -331,7 +349,7 @@ Standard Pandemonium agents are encouraged to use **both**. The Timeline provide
 
 ---
 
-## 18. Advanced Orchestration Engines
+## 16. Advanced Orchestration Engines
 
 Pandemonium supports multiple engine types to facilitate different research and simulation goals:
 
@@ -351,7 +369,7 @@ Support for multiple Game Masters, allowing the engine to select different "Rule
 
 ---
 
-## 19. Key Advantages of a Go Version
+## 17. Key Advantages of a Go Version
 
 1.  **Strict Typing**: Prevents common "stringly-typed" errors in complex component interactions.
 2.  **Performance**: Handling 100+ agents in a simultaneous engine will be significantly faster and use less memory than the Python equivalent.
