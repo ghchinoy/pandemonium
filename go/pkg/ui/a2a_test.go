@@ -140,7 +140,7 @@ func TestA2ACLIIntegration(t *testing.T) {
 
 	// 2. Test a2acli send
 	prompt := "Hello from a2acli!"
-	cmdSend := exec.Command(cliPath, "send", prompt, "--service-url", serviceURL, "--wait", "--output", "json")
+	cmdSend := exec.Command(cliPath, "send", prompt, "--service-url", serviceURL, "--output", "json")
 	outSend, err := cmdSend.CombinedOutput()
 	if err != nil {
 		t.Fatalf("a2acli send %q --service-url %q failed: %v\nOutput: %s", prompt, serviceURL, err, string(outSend))

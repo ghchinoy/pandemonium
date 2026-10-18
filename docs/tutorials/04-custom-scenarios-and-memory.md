@@ -119,3 +119,9 @@ go run ./cmd/pandemonium \
 **What to Verify**:
 - `/tmp/library_checkpoint.json` contains `completed_steps`, `last_actor`, `last_rotation_index`, and the `entities` map with each entity's `timeline` and `memories`.
 - When resumed with `-resume`, `Sequential.Run` skips Step 0 initialization and continues from `completed_steps`.
+
+---
+
+## Next Step
+
+Continue to [Tutorial 05: Advanced Simulation Engines (`Simultaneous` & `Asynchronous`)](05-advanced-engines.md).

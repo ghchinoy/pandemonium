@@ -49,12 +49,12 @@ curl -s http://localhost:9001/.well-known/agent-card.json | jq .
 
 ## Step 3: Send an Action Prompt & Stream Reasoning Artifacts
 
-In **Terminal 2**, send a message to `Bob` and wait for the task to complete:
+In **Terminal 2**, send a message to `Bob` with `--stream` to follow the live reasoning artifact events (`JSONL` in `--output json` mode):
 
 ```bash
 a2acli send "What do you notice about the pub around you?" \
   --service-url http://localhost:9001 \
-  --wait \
+  --stream \
   --output json
 ```
 
@@ -62,7 +62,7 @@ a2acli send "What do you notice about the pub around you?" \
 1. **In Terminal 1 (`agent-node`)**:
    - Logs `[Bob Thinking] Bob is considering their action...` as `BaseEntity.Act` executes its parallel `PRE_ACT` components.
 2. **In Terminal 2 (`a2acli`)**:
-   - Receives `TaskArtifactUpdateEvent` payloads containing Bob's internal component contexts (`Instructions`, `Memory`, `Timeline`, `SelfPerception`, `SituationPerception`).
+   - Receives `TaskArtifactUpdateEvent` payloads containing Bob's internal component contexts (`Instructions`, `Memory`, `Timeline`, `Reflection`, `SituationPerception`, `SelfPerception`, `PersonBySituation`).
    - Completes with a final `TaskStatusUpdateEvent` (`COMPLETED`) containing Bob's action message.
 
 ---

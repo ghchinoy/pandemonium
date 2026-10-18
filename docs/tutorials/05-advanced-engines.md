@@ -87,3 +87,9 @@ go run ./cmd/pandemonium \
 
 **What to Verify**:
 - `Alice` and `Bob` execute their `Observe -> Act -> Resolve` loops concurrently in separate goroutines (`Async Step N (Alice)`, `Async Step M (Bob)`), synchronized safely at the Game Master boundary.
+
+---
+
+## Next Step
+
+Continue to [Tutorial 06: Running AX-Sandboxed Simulations over A2A v2](06-ax-sandboxed-simulation.md).
