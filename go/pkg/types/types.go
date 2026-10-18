@@ -3,6 +3,7 @@ package types
 
 import (
 	"context"
+	"slices"
 	"sync"
 )
 
@@ -92,9 +93,7 @@ type EventBus struct {
 
 // NewEventBus initializes a new multi-consumer event bus.
 func NewEventBus() *EventBus {
-	return &EventBus{
-		listeners: make([]chan Event, 0),
-	}
+	return &EventBus{}
 }
 
 // Subscribe adds a new listener and returns its channel.
@@ -103,8 +102,28 @@ func (b *EventBus) Subscribe() chan Event {
 	defer b.mu.Unlock()
 
 	ch := make(chan Event, 100)
+	if b.closed {
+		close(ch)
+		return ch
+	}
 	b.listeners = append(b.listeners, ch)
 	return ch
+}
+
+// Unsubscribe removes a listener channel from the bus and closes it.
+func (b *EventBus) Unsubscribe(ch chan Event) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	for i, listener := range b.listeners {
+		if listener == ch {
+			b.listeners = slices.Delete(b.listeners, i, i+1)
+			if !b.closed {
+				close(ch)
+			}
+			return
+		}
+	}
 }
 
 // Publish sends an event to all subscribers.

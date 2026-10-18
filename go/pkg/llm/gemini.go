@@ -25,34 +25,12 @@ type GeminiModel struct {
 
 // NewGeminiModel initializes a new Gemini client.
 func NewGeminiModel(ctx context.Context) (*GeminiModel, error) {
-	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	location := os.Getenv("GOOGLE_CLOUD_LOCATION")
-	apiKey := os.Getenv("GOOGLE_GENAI_API_KEY")
 	modelName := os.Getenv("GEMINI_MODEL")
-
 	if modelName == "" {
 		modelName = "gemini-3-flash-preview"
 	}
 
-	var client *genai.Client
-	var err error
-
-	if project != "" {
-		if location == "" {
-			location = "global"
-		}
-		client, err = genai.NewClient(ctx, &genai.ClientConfig{
-			Project:  project,
-			Location: location,
-			Backend:  genai.BackendVertexAI,
-		})
-	} else if apiKey != "" {
-		client, err = genai.NewClient(ctx, &genai.ClientConfig{
-			APIKey:  apiKey,
-			Backend: genai.BackendGeminiAPI,
-		})
-	}
-
+	client, err := newGenAIClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("initializing genai client: %w", err)
 	}
@@ -118,34 +96,12 @@ type GeminiEmbedder struct {
 
 // NewGeminiEmbedder initializes a new embedder.
 func NewGeminiEmbedder(ctx context.Context) (*GeminiEmbedder, error) {
-	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	location := os.Getenv("GOOGLE_CLOUD_LOCATION")
-	apiKey := os.Getenv("GOOGLE_GENAI_API_KEY")
 	modelName := os.Getenv("GEMINI_EMBEDDING_MODEL")
-
 	if modelName == "" {
 		modelName = "gemini-embedding-001"
 	}
 
-	var client *genai.Client
-	var err error
-
-	if project != "" {
-		if location == "" {
-			location = "global"
-		}
-		client, err = genai.NewClient(ctx, &genai.ClientConfig{
-			Project:  project,
-			Location: location,
-			Backend:  genai.BackendVertexAI,
-		})
-	} else if apiKey != "" {
-		client, err = genai.NewClient(ctx, &genai.ClientConfig{
-			APIKey:  apiKey,
-			Backend: genai.BackendGeminiAPI,
-		})
-	}
-
+	client, err := newGenAIClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("initializing genai client for embedding: %w", err)
 	}
@@ -178,4 +134,28 @@ func (e *GeminiEmbedder) Embed(ctx context.Context, text string) ([]float64, err
 	}
 
 	return vector, nil
+}
+
+func newGenAIClient(ctx context.Context) (*genai.Client, error) {
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	location := os.Getenv("GOOGLE_CLOUD_LOCATION")
+	apiKey := os.Getenv("GOOGLE_GENAI_API_KEY")
+
+	if project != "" {
+		if location == "" {
+			location = "global"
+		}
+		return genai.NewClient(ctx, &genai.ClientConfig{
+			Project:  project,
+			Location: location,
+			Backend:  genai.BackendVertexAI,
+		})
+	}
+	if apiKey != "" {
+		return genai.NewClient(ctx, &genai.ClientConfig{
+			APIKey:  apiKey,
+			Backend: genai.BackendGeminiAPI,
+		})
+	}
+	return nil, nil
 }

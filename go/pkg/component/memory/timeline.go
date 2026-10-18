@@ -1,4 +1,3 @@
-// Package memory implements memory components for Pandemonium entities.
 package memory
 
 import (
@@ -14,7 +13,7 @@ import (
 type TimelineMemory struct {
 	CompName string
 	Capacity int
-	
+
 	mu     sync.RWMutex
 	events []string
 }
@@ -43,7 +42,7 @@ func (t *TimelineMemory) PreAct(_ context.Context, _ types.ActionSpec) (string, 
 	var sb strings.Builder
 	sb.WriteString("Recent Timeline:\n")
 	for i, event := range t.events {
-		sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, event))
+		fmt.Fprintf(&sb, "%d. %s\n", i+1, event)
 	}
 	return sb.String(), nil
 }

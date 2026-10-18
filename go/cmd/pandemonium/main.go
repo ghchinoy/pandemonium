@@ -9,20 +9,14 @@ import (
 	"log"
 	"os"
 
+	"github.com/joho/godotenv"
+
 	"github.com/ghchinoy/pandemonium/pkg/engine"
 	"github.com/ghchinoy/pandemonium/pkg/llm"
 	"github.com/ghchinoy/pandemonium/pkg/prefab"
 	"github.com/ghchinoy/pandemonium/pkg/types"
 	"github.com/ghchinoy/pandemonium/pkg/ui"
-	"github.com/joho/godotenv"
 )
-
-// MockEmbedder implements a simple identity embedder for testing.
-type MockEmbedder struct{}
-
-func (m *MockEmbedder) Embed(ctx context.Context, text string) ([]float64, error) {
-	return []float64{float64(len(text)), 0, 0}, nil
-}
 
 func main() {
 	logFile := flag.String("log", "", "path to file for simulation event logging (JSONL format)")

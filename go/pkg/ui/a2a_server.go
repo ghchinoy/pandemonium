@@ -11,6 +11,7 @@ import (
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
+
 	"github.com/ghchinoy/pandemonium/pkg/types"
 )
 
@@ -71,101 +72,7 @@ func (e *EntityExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCo
 			return
 		}
 
-		eventsChan := make(chan a2a.Event, 100)
-
-		if e.Bus != nil {
-			sub := e.Bus.Subscribe()
-			done := make(chan struct{})
-			var reasoningGroup sync.WaitGroup
-			reasoningGroup.Add(1)
-
-			go func() {
-				defer reasoningGroup.Done()
-				for {
-					select {
-					case <-done:
-						return
-					case event, ok := <-sub:
-						if !ok {
-							return
-						}
-						if event.Actor == e.Entity.Name() && event.Type == types.EventThought {
-							if contexts, ok := event.Data.(map[string]string); ok {
-								for name, val := range contexts {
-									if val == "" {
-										continue
-									}
-									artEvent := a2a.NewArtifactEvent(execCtx, a2a.NewTextPart(val))
-									if artEvent.Artifact != nil {
-										artEvent.Artifact.Name = name
-									}
-									select {
-									case <-ctx.Done():
-										return
-									case eventsChan <- artEvent:
-									}
-								}
-							}
-						}
-					}
-				}
-			}()
-
-			type actResult struct {
-				action string
-				err    error
-			}
-			actDone := make(chan actResult, 1)
-
-			go func() {
-				spec := types.ActionSpec{
-					CallToAction: input,
-					OutputType:   types.OutputFree,
-				}
-				act, err := e.Entity.Act(ctx, spec)
-				actDone <- actResult{action: act, err: err}
-			}()
-
-			var action string
-			var actErr error
-		loop:
-			for {
-				select {
-				case artEvent := <-eventsChan:
-					if !yield(artEvent, nil) {
-						close(done)
-						return
-					}
-				case res := <-actDone:
-					action = res.action
-					actErr = res.err
-					close(done)
-					break loop
-				case <-ctx.Done():
-					close(done)
-					yield(a2a.NewStatusUpdateEvent(execCtx, a2a.TaskStateCanceled, nil), nil)
-					return
-				}
-			}
-			reasoningGroup.Wait()
-
-			close(eventsChan)
-			for artEvent := range eventsChan {
-				if !yield(artEvent, nil) {
-					return
-				}
-			}
-
-			if actErr != nil {
-				errMsg := a2a.NewMessageForTask(a2a.MessageRoleAgent, execCtx, a2a.NewTextPart(actErr.Error()))
-				yield(a2a.NewStatusUpdateEvent(execCtx, a2a.TaskStateFailed, errMsg), nil)
-				return
-			}
-
-			responseMsg := a2a.NewMessageForTask(a2a.MessageRoleAgent, execCtx, a2a.NewTextPart(action))
-			yield(a2a.NewStatusUpdateEvent(execCtx, a2a.TaskStateCompleted, responseMsg), nil)
-			return
-		} else {
+		if e.Bus == nil {
 			spec := types.ActionSpec{
 				CallToAction: input,
 				OutputType:   types.OutputFree,
@@ -181,6 +88,99 @@ func (e *EntityExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCo
 			yield(a2a.NewStatusUpdateEvent(execCtx, a2a.TaskStateCompleted, responseMsg), nil)
 			return
 		}
+
+		eventsChan := make(chan a2a.Event, 100)
+		sub := e.Bus.Subscribe()
+		defer e.Bus.Unsubscribe(sub)
+		done := make(chan struct{})
+		var reasoningGroup sync.WaitGroup
+		reasoningGroup.Add(1)
+
+		go func() {
+			defer reasoningGroup.Done()
+			for {
+				select {
+				case <-done:
+					return
+				case event, ok := <-sub:
+					if !ok {
+						return
+					}
+					if event.Actor == e.Entity.Name() && event.Type == types.EventThought {
+						if contexts, ok := event.Data.(map[string]string); ok {
+							for name, val := range contexts {
+								if val == "" {
+									continue
+								}
+								artEvent := a2a.NewArtifactEvent(execCtx, a2a.NewTextPart(val))
+								if artEvent.Artifact != nil {
+									artEvent.Artifact.Name = name
+								}
+								select {
+								case <-ctx.Done():
+									return
+								case eventsChan <- artEvent:
+								}
+							}
+						}
+					}
+				}
+			}
+		}()
+
+		type actResult struct {
+			action string
+			err    error
+		}
+		actDone := make(chan actResult, 1)
+
+		go func() {
+			spec := types.ActionSpec{
+				CallToAction: input,
+				OutputType:   types.OutputFree,
+			}
+			act, err := e.Entity.Act(ctx, spec)
+			actDone <- actResult{action: act, err: err}
+		}()
+
+		var action string
+		var actErr error
+	loop:
+		for {
+			select {
+			case artEvent := <-eventsChan:
+				if !yield(artEvent, nil) {
+					close(done)
+					return
+				}
+			case res := <-actDone:
+				action = res.action
+				actErr = res.err
+				close(done)
+				break loop
+			case <-ctx.Done():
+				close(done)
+				yield(a2a.NewStatusUpdateEvent(execCtx, a2a.TaskStateCanceled, nil), nil)
+				return
+			}
+		}
+		reasoningGroup.Wait()
+
+		close(eventsChan)
+		for artEvent := range eventsChan {
+			if !yield(artEvent, nil) {
+				return
+			}
+		}
+
+		if actErr != nil {
+			errMsg := a2a.NewMessageForTask(a2a.MessageRoleAgent, execCtx, a2a.NewTextPart(actErr.Error()))
+			yield(a2a.NewStatusUpdateEvent(execCtx, a2a.TaskStateFailed, errMsg), nil)
+			return
+		}
+
+		responseMsg := a2a.NewMessageForTask(a2a.MessageRoleAgent, execCtx, a2a.NewTextPart(action))
+		yield(a2a.NewStatusUpdateEvent(execCtx, a2a.TaskStateCompleted, responseMsg), nil)
 	}
 }
 

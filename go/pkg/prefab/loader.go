@@ -6,13 +6,14 @@ import (
 	"os"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/ghchinoy/pandemonium/pkg/component"
 	"github.com/ghchinoy/pandemonium/pkg/component/memory"
 	"github.com/ghchinoy/pandemonium/pkg/entity"
 	"github.com/ghchinoy/pandemonium/pkg/llm"
 	"github.com/ghchinoy/pandemonium/pkg/types"
 	"github.com/ghchinoy/pandemonium/pkg/vector"
-	"gopkg.in/yaml.v3"
 )
 
 // LoadedSimulation contains the initialized parts of a simulation.
@@ -37,7 +38,7 @@ func LoadScenario(ctx context.Context, path string, model llm.Model, embedder ve
 		}
 		data, err = BuiltinScenarios.ReadFile(embeddedPath)
 		if err != nil {
-			return nil, fmt.Errorf("could not find scenario file '%s' on disk or in builtin templates", path)
+			return nil, fmt.Errorf("could not find scenario file %q on disk or in builtin templates: %w", path, err)
 		}
 	}
 
@@ -54,20 +55,24 @@ func LoadScenario(ctx context.Context, path string, model llm.Model, embedder ve
 			// Remote A2A Agent
 			agent, err = entity.NewA2AProxyEntity(ctx, ac.Name, ac.URL, bus)
 			if err != nil {
-				return nil, fmt.Errorf("loading remote agent %s: %w", ac.Name, err)
+				return nil, fmt.Errorf("loading remote agent %q: %w", ac.Name, err)
 			}
 		} else {
 			// Local Agent with pluggable storage
-			store := createStore(ctx, ac)
+			store, err := NewStore(ctx, ac)
+			if err != nil {
+				return nil, fmt.Errorf("initializing store for agent %q: %w", ac.Name, err)
+			}
 			agent = NewThreeKeyQuestionsAgent(ctx, ac.Name, ac.Persona, model, embedder, store)
 
 			// Seed Formative Memories if present
-			if len(ac.FormativeMemories) > 0 {
-				for _, m := range ac.FormativeMemories {
-					vec, err := embedder.Embed(ctx, m)
-					if err == nil {
-						_ = store.Add(ctx, vector.Item{Text: m, Embedding: vec})
-					}
+			for _, m := range ac.FormativeMemories {
+				vec, err := embedder.Embed(ctx, m)
+				if err != nil {
+					return nil, fmt.Errorf("embedding formative memory for %q: %w", ac.Name, err)
+				}
+				if err := store.Add(ctx, vector.Item{Text: m, Embedding: vec}); err != nil {
+					return nil, fmt.Errorf("storing formative memory for %q: %w", ac.Name, err)
 				}
 			}
 
@@ -115,27 +120,22 @@ func LoadScenario(ctx context.Context, path string, model llm.Model, embedder ve
 	}, nil
 }
 
-func createStore(ctx context.Context, ac types.AgentConfig) vector.Store {
+// NewStore creates a vector.Store based on the agent's storage configuration.
+func NewStore(ctx context.Context, ac types.AgentConfig) (vector.Store, error) {
 	store := vector.NewMemoryStore()
 
 	// Legacy memory_file flag
 	if ac.MemoryFile != "" {
-		if fs, err := vector.NewFileStore(ctx, ac.MemoryFile, store); err == nil {
-			return fs
-		}
+		return vector.NewFileStore(ctx, ac.MemoryFile, store)
 	}
 
 	// Modern Storage block
 	switch ac.Storage.Type {
 	case "file":
-		if fs, err := vector.NewFileStore(ctx, ac.Storage.Path, store); err == nil {
-			return fs
-		}
+		return vector.NewFileStore(ctx, ac.Storage.Path, store)
 	case "markdown":
-		if ms, err := vector.NewMarkdownStore(ac.Storage.Path); err == nil {
-			return ms
-		}
+		return vector.NewMarkdownStore(ac.Storage.Path)
+	default:
+		return store, nil
 	}
-
-	return store
 }

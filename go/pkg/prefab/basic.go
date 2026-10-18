@@ -38,48 +38,16 @@ func (c *ConcatActComponent) GetActionAttempt(ctx context.Context, contexts map[
 			continue
 		}
 		if val, ok := contexts[name]; ok && val != "" {
-			user.WriteString(fmt.Sprintf("\n## %s\n%s\n", name, val))
+			fmt.Fprintf(&user, "\n## %s\n%s\n", name, val)
 		}
 	}
-	user.WriteString(fmt.Sprintf("\nTask: %s\nResponse:", spec.CallToAction))
+	fmt.Fprintf(&user, "\nTask: %s\nResponse:", spec.CallToAction)
 
 	return c.Model.GenerateWithSystem(ctx, system, user.String())
 }
 
-// SimpleContextComponent is a helper for fixed context.
-type SimpleContextComponent struct {
-	CompName string
-	Value    string
-}
-
-// Name returns the name of the component.
-func (s *SimpleContextComponent) Name() string { return s.CompName }
-
-// PreAct returns the fixed value.
-func (s *SimpleContextComponent) PreAct(ctx context.Context, spec types.ActionSpec) (string, error) {
-	return s.Value, nil
-}
-
-// PostAct is a no-op.
-func (s *SimpleContextComponent) PostAct(ctx context.Context, action string) (string, error) {
-	return "", nil
-}
-
-// PreObserve is a no-op.
-func (s *SimpleContextComponent) PreObserve(ctx context.Context, observation string) (string, error) {
-	return "", nil
-}
-
-// PostObserve is a no-op.
-func (s *SimpleContextComponent) PostObserve(ctx context.Context) (string, error) {
-	return "", nil
-}
-
-// Update is a no-op.
-func (s *SimpleContextComponent) Update(ctx context.Context) error { return nil }
-
 // NewThreeKeyQuestionsAgent builds the standard reasoning agent.
-func NewThreeKeyQuestionsAgent(ctx context.Context, name string, persona string, model llm.Model, embedder vector.Embedder, store vector.Store) types.Entity {
+func NewThreeKeyQuestionsAgent(_ context.Context, name string, persona string, model llm.Model, embedder vector.Embedder, store vector.Store) types.Entity {
 	mem := &memory.AssociativeMemory{
 		Store:    store,
 		Embedder: embedder,
@@ -88,7 +56,7 @@ func NewThreeKeyQuestionsAgent(ctx context.Context, name string, persona string,
 	timeline := memory.NewTimelineMemory("Timeline", 10)
 
 	components := map[string]component.ContextComponent{
-		"Instructions": &SimpleContextComponent{CompName: "Instructions", Value: persona},
+		"Instructions": &component.Constant{CompName: "Instructions", Value: persona},
 		"Memory":       mem,
 		"Timeline":     timeline,
 		"SelfPerception": &component.DynamicContextComponent{

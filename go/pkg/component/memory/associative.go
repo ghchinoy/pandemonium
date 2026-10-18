@@ -1,4 +1,4 @@
-// Package memory implements associative memory components for Pandemonium entities.
+// Package memory implements associative and chronological memory components for Pandemonium entities.
 package memory
 
 import (
@@ -15,8 +15,6 @@ type AssociativeMemory struct {
 	Store    vector.Store
 	Embedder vector.Embedder
 	K        int
-
-	Observations []string
 }
 
 // Name returns the name of the component.
@@ -42,7 +40,7 @@ func (m *AssociativeMemory) PreAct(ctx context.Context, spec types.ActionSpec) (
 	var sb strings.Builder
 	sb.WriteString("Relevant memories:\n")
 	for _, item := range items {
-		sb.WriteString(fmt.Sprintf("- %s\n", item.Text))
+		fmt.Fprintf(&sb, "- %s\n", item.Text)
 	}
 
 	return sb.String(), nil

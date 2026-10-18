@@ -7,7 +7,8 @@ import (
 	"math/rand"
 	"strings"
 
-	"github.com/a2aproject/a2a-go/a2a"
+	"github.com/a2aproject/a2a-go/v2/a2a"
+
 	"github.com/ghchinoy/pandemonium/pkg/types"
 )
 
@@ -20,12 +21,6 @@ type Sequential struct {
 	Strategy  types.TurnTakingStrategy
 
 	lastRotationIndex int
-}
-
-func (s *Sequential) emit(e types.Event) {
-	if s.Bus != nil {
-		s.Bus.Publish(e)
-	}
 }
 
 // Run executes the simulation loop.
@@ -51,13 +46,13 @@ func (s *Sequential) Run(ctx context.Context, gm types.Entity, players []types.E
 
 	if premise != "" {
 		if err := gm.Observe(ctx, fmt.Sprintf("[Premise] %s", premise)); err != nil {
-			return err
+			return fmt.Errorf("setup observation for GM: %w", err)
 		}
 		// Synchronously seed all players with the world context
 		for _, p := range players {
 			setupMsg := fmt.Sprintf("System: Scenario Initialization. Premise: %s", premise)
 			if err := p.Observe(ctx, setupMsg); err != nil {
-				return fmt.Errorf("setup observation for %s: %w", p.Name(), err)
+				return fmt.Errorf("setup observation for %q: %w", p.Name(), err)
 			}
 			s.emit(types.Event{Type: types.EventObservation, Actor: p.Name(), Message: "Received world context."})
 		}
@@ -83,15 +78,16 @@ func (s *Sequential) Run(ctx context.Context, gm types.Entity, players []types.E
 				Options:      []string{"Yes", "No"},
 			}
 			res, err := gm.Act(ctx, terminateSpec)
-			if err == nil {
-				cleanRes := strings.TrimSpace(strings.ToLower(res))
-				s.emit(types.Event{Type: types.EventThought, Actor: "GM", Message: fmt.Sprintf("Is simulation finished? GM says: %s", res)})
-				
-				if strings.HasPrefix(cleanRes, "yes") {
-					fmt.Println("[World] Termination signal received.")
-					s.emit(types.Event{Type: types.EventResolution, Message: "The Game Master has concluded the simulation."})
-					break
-				}
+			if err != nil {
+				return fmt.Errorf("checking termination: %w", err)
+			}
+			cleanRes := strings.TrimSpace(strings.ToLower(res))
+			s.emit(types.Event{Type: types.EventThought, Actor: "GM", Message: fmt.Sprintf("Is simulation finished? GM says: %s", res)})
+
+			if strings.HasPrefix(cleanRes, "yes") {
+				fmt.Println("[World] Termination signal received.")
+				s.emit(types.Event{Type: types.EventResolution, Message: "The Game Master has concluded the simulation."})
+				break
 			}
 		}
 
@@ -146,7 +142,7 @@ func (s *Sequential) Run(ctx context.Context, gm types.Entity, players []types.E
 				}
 			}
 			if !found {
-				return fmt.Errorf("GM selected unknown actor: %s", nextActorName)
+				return fmt.Errorf("GM selected unknown actor %q", nextActorName)
 			}
 		}
 
@@ -194,11 +190,17 @@ func (s *Sequential) Run(ctx context.Context, gm types.Entity, players []types.E
 
 		// 7. Inform GM of resolution (to update its world state)
 		if err := gm.Observe(ctx, fmt.Sprintf("[Event] %s", resolution)); err != nil {
-			return err
+			return fmt.Errorf("updating GM world state: %w", err)
 		}
 	}
 
 	fmt.Printf("\n--- Simulation Complete ---\n")
 	s.emit(types.Event{Type: types.EventSimComplete, Message: "Simulation completed"})
 	return nil
+}
+
+func (s *Sequential) emit(e types.Event) {
+	if s.Bus != nil {
+		s.Bus.Publish(e)
+	}
 }

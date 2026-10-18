@@ -3,12 +3,15 @@ package entity
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
+	"github.com/a2aproject/a2a-go/v2/a2aclient/agentcard"
+
 	"github.com/ghchinoy/pandemonium/pkg/types"
 )
 
@@ -26,19 +29,11 @@ type A2AProxyEntity struct {
 func NewA2AProxyEntity(ctx context.Context, name, url string, bus *types.EventBus) (*A2AProxyEntity, error) {
 	baseURL := strings.TrimSuffix(url, "/invoke")
 
-	// Connectivity Check: Fetch the public Agent Card via standard HTTP
-	// This ensures the server is up and identifies as an A2A agent.
-	checkURL := fmt.Sprintf("%s/.well-known/agent-card.json", baseURL)
+	// Connectivity Check: Fetch and validate the public Agent Card via the A2A resolver.
 	httpClient := &http.Client{Timeout: 5 * time.Second}
-	resp, err := httpClient.Get(checkURL)
-	if err != nil {
-		return nil, fmt.Errorf("remote agent %s at %s not responding: %w", name, baseURL, err)
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("remote agent %s at %s returned status %d", name, checkURL, resp.StatusCode)
+	resolver := agentcard.NewResolver(httpClient)
+	if _, err := resolver.Resolve(ctx, baseURL); err != nil {
+		return nil, fmt.Errorf("resolving agent card for %q at %q: %w", name, baseURL, err)
 	}
 
 	// Create client with JSON-RPC transport
@@ -49,7 +44,7 @@ func NewA2AProxyEntity(ctx context.Context, name, url string, bus *types.EventBu
 
 	client, err := factory.CreateFromEndpoints(ctx, endpoints)
 	if err != nil {
-		return nil, fmt.Errorf("initializing A2A client for %s: %w", name, err)
+		return nil, fmt.Errorf("initializing A2A client for %q: %w", name, err)
 	}
 
 	return &A2AProxyEntity{
@@ -79,9 +74,9 @@ func (e *A2AProxyEntity) Observe(ctx context.Context, observation string) error 
 	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.NewTextPart(observation))
 	msg.ContextID = e.ContextID
 
-	meta := make(map[string]any)
-	for k, v := range e.Metadata {
-		meta[k] = v
+	meta := maps.Clone(e.Metadata)
+	if meta == nil {
+		meta = make(map[string]any)
 	}
 	meta["type"] = "observation"
 
@@ -92,7 +87,7 @@ func (e *A2AProxyEntity) Observe(ctx context.Context, observation string) error 
 
 	_, err := e.Client.SendMessage(ctx, &req)
 	if err != nil {
-		return fmt.Errorf("sending observation to %s: %w", e.EntityName, err)
+		return fmt.Errorf("sending observation to %q: %w", e.EntityName, err)
 	}
 	return nil
 }
@@ -104,7 +99,7 @@ func (e *A2AProxyEntity) Act(ctx context.Context, spec types.ActionSpec) (string
 
 	req := a2a.SendMessageRequest{
 		Message:  msg,
-		Metadata: e.Metadata,
+		Metadata: maps.Clone(e.Metadata),
 	}
 
 	// Use SendStreamingMessage for stateful/task-based interactions
@@ -170,18 +165,8 @@ func (e *A2AProxyEntity) Act(ctx context.Context, spec types.ActionSpec) (string
 	}
 
 	if finalAction == "" {
-		return "", fmt.Errorf("remote agent %s returned no action", e.EntityName)
+		return "", fmt.Errorf("remote agent %q returned no action", e.EntityName)
 	}
 
 	return finalAction, nil
-}
-
-func (e *A2AProxyEntity) emitThought(msg string) {
-	if e.Bus != nil {
-		e.Bus.Publish(types.Event{
-			Type:    types.EventThought,
-			Actor:   e.EntityName,
-			Message: msg,
-		})
-	}
 }

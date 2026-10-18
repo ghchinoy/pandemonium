@@ -2,6 +2,7 @@ package ui_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -15,28 +16,16 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/ghchinoy/pandemonium/pkg/entity"
 	"github.com/ghchinoy/pandemonium/pkg/types"
 	"github.com/ghchinoy/pandemonium/pkg/ui"
 )
 
-type mockEntity struct {
-	name string
-	obs  []string
-	act  string
-}
-
-func (m *mockEntity) Name() string { return m.name }
-func (m *mockEntity) Observe(ctx context.Context, observation string) error {
-	m.obs = append(m.obs, observation)
-	return nil
-}
-func (m *mockEntity) Act(ctx context.Context, spec types.ActionSpec) (string, error) {
-	return m.act, nil
-}
-
 func TestA2AServerAndProxyInteraction(t *testing.T) {
 	bus := types.NewEventBus()
+	defer bus.Close()
 	mock := &mockEntity{name: "TestBot", act: "I inspect the room."}
 
 	executor := &ui.EntityExecutor{Entity: mock, Bus: bus}
@@ -46,8 +35,8 @@ func TestA2AServerAndProxyInteraction(t *testing.T) {
 	mux.Handle("/invoke", a2asrv.NewJSONRPCHandler(handler))
 
 	card := &a2a.AgentCard{
-		Name:        mock.Name(),
-		Description: fmt.Sprintf("Pandemonium Agent: %s", mock.Name()),
+		Name:         mock.Name(),
+		Description:  fmt.Sprintf("Pandemonium Agent: %s", mock.Name()),
 		Capabilities: a2a.AgentCapabilities{Streaming: true},
 	}
 	mux.Handle(a2asrv.WellKnownAgentCardPath, a2asrv.NewStaticAgentCardHandler(card))
@@ -55,72 +44,64 @@ func TestA2AServerAndProxyInteraction(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	// Verify agent card can be fetched
 	checkURL := fmt.Sprintf("%s/.well-known/agent-card.json", ts.URL)
 	resp, err := http.Get(checkURL)
 	if err != nil {
-		t.Fatalf("Failed to fetch agent card: %v", err)
+		t.Fatalf("http.Get(%q) returned unexpected error: %v", checkURL, err)
 	}
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("Agent card returned status %d", resp.StatusCode)
+		t.Fatalf("http.Get(%q) status = %d, want %d", checkURL, resp.StatusCode, http.StatusOK)
 	}
 
-	// Create A2AProxyEntity using client factory directly with test server URL
-	factory := a2aclient.NewFactory(a2aclient.WithJSONRPCTransport(nil))
+	// Create A2AProxyEntity using NewA2AProxyEntity
 	invokeURL := fmt.Sprintf("%s/invoke", ts.URL)
-	endpoints := []*a2a.AgentInterface{
-		a2a.NewAgentInterface(invokeURL, a2a.TransportProtocolJSONRPC),
-	}
-	client, err := factory.CreateFromEndpoints(ctx, endpoints)
+	proxy, err := entity.NewA2AProxyEntity(ctx, "TestBot", invokeURL, bus)
 	if err != nil {
-		t.Fatalf("Failed to create client from endpoints: %v", err)
-	}
-
-	proxy := &entity.A2AProxyEntity{
-		EntityName: "TestBot",
-		URL:        invokeURL,
-		Client:     client,
-		Bus:        bus,
+		t.Fatalf("NewA2AProxyEntity(ctx, %q, %q, bus) returned unexpected error: %v", "TestBot", invokeURL, err)
 	}
 
 	// Test Observe
-	err = proxy.Observe(ctx, "The sky is blue.")
-	if err != nil {
-		t.Fatalf("Observe failed: %v", err)
+	obsInput := "The sky is blue."
+	if err := proxy.Observe(ctx, obsInput); err != nil {
+		t.Fatalf("proxy.Observe(ctx, %q) returned unexpected error: %v", obsInput, err)
 	}
-	if len(mock.obs) != 1 || mock.obs[0] != "The sky is blue." {
-		t.Fatalf("Unexpected observations in mock: %v", mock.obs)
+	wantObs := []string{obsInput}
+	if diff := cmp.Diff(wantObs, mock.obs); diff != "" {
+		t.Errorf("proxy.Observe(ctx, %q) mock.obs diff (-want +got):\n%s", obsInput, diff)
 	}
 
 	// Test Act
-	action, err := proxy.Act(ctx, types.ActionSpec{CallToAction: "What do you do?"})
+	spec := types.ActionSpec{CallToAction: "What do you do?"}
+	gotAction, err := proxy.Act(ctx, spec)
 	if err != nil {
-		t.Fatalf("Act failed: %v", err)
+		t.Fatalf("proxy.Act(ctx, %+v) returned unexpected error: %v", spec, err)
 	}
-	if action != "I inspect the room." {
-		t.Fatalf("Unexpected action returned: %q", action)
+	wantAction := "I inspect the room."
+	if gotAction != wantAction {
+		t.Errorf("proxy.Act(ctx, %+v) = %q, want %q", spec, gotAction, wantAction)
 	}
 }
 
 func TestA2ACLIIntegration(t *testing.T) {
-	absPath, err := filepath.Abs("../../../../a2acli/bin/a2acli")
-	if err != nil {
-		t.Skip("Failed to resolve a2acli path")
-	}
-	cliPath, err := exec.LookPath(absPath)
-	if err != nil {
-		t.Skipf("a2acli binary not found at %s, skipping CLI integration test", absPath)
-	}
+	cliPath := resolveA2ACLI(t)
 
 	bus := types.NewEventBus()
+	defer bus.Close()
 	mock := &mockEntity{name: "PandemoniumCLIEntity", act: "I am responding to a2acli."}
 
 	executor := &ui.EntityExecutor{Entity: mock, Bus: bus}
 	handler := a2asrv.NewHandler(executor)
+
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen(\"tcp\", \"127.0.0.1:0\") returned unexpected error: %v", err)
+	}
+	serviceURL := fmt.Sprintf("http://%s", l.Addr().String())
 
 	mux := http.NewServeMux()
 	mux.Handle("/", a2asrv.NewJSONRPCHandler(handler))
@@ -129,37 +110,78 @@ func TestA2ACLIIntegration(t *testing.T) {
 		Name:        mock.Name(),
 		Description: fmt.Sprintf("Pandemonium Agent: %s", mock.Name()),
 		SupportedInterfaces: []*a2a.AgentInterface{
-			a2a.NewAgentInterface("http://127.0.0.1:9099/", a2a.TransportProtocolJSONRPC),
+			a2a.NewAgentInterface(serviceURL+"/", a2a.TransportProtocolJSONRPC),
 		},
 		Capabilities: a2a.AgentCapabilities{Streaming: true},
 	}
 	mux.Handle(a2asrv.WellKnownAgentCardPath, a2asrv.NewStaticAgentCardHandler(card))
 
-	l, err := net.Listen("tcp", "127.0.0.1:9099")
-	if err != nil {
-		t.Fatalf("Failed to listen on 9099: %v", err)
-	}
 	srv := &http.Server{Handler: mux}
-	go srv.Serve(l)
-	defer srv.Close()
+	go func() {
+		if err := srv.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			t.Errorf("srv.Serve(%q) returned unexpected error: %v", l.Addr(), err)
+		}
+	}()
+	defer func() {
+		_ = srv.Close()
+	}()
 
 	// 1. Test a2acli discover
-	cmdDiscover := exec.Command(cliPath, "discover", "--service-url", "http://127.0.0.1:9099", "--output", "json")
+	cmdDiscover := exec.Command(cliPath, "discover", "--service-url", serviceURL, "--output", "json")
 	outDiscover, err := cmdDiscover.CombinedOutput()
 	if err != nil {
-		t.Fatalf("a2acli discover failed: %v\nOutput: %s", err, string(outDiscover))
+		t.Fatalf("a2acli discover --service-url %q failed: %v\nOutput: %s", serviceURL, err, string(outDiscover))
 	}
-	if !strings.Contains(string(outDiscover), "PandemoniumCLIEntity") {
-		t.Fatalf("a2acli discover output missing entity name: %s", string(outDiscover))
+	gotDiscover := string(outDiscover)
+	if !strings.Contains(gotDiscover, "PandemoniumCLIEntity") {
+		t.Errorf("a2acli discover --service-url %q = %q, want substring %q", serviceURL, gotDiscover, "PandemoniumCLIEntity")
 	}
 
 	// 2. Test a2acli send
-	cmdSend := exec.Command(cliPath, "send", "Hello from a2acli!", "--service-url", "http://127.0.0.1:9099", "--wait", "--output", "json")
+	prompt := "Hello from a2acli!"
+	cmdSend := exec.Command(cliPath, "send", prompt, "--service-url", serviceURL, "--wait", "--output", "json")
 	outSend, err := cmdSend.CombinedOutput()
 	if err != nil {
-		t.Fatalf("a2acli send failed: %v\nOutput: %s", err, string(outSend))
+		t.Fatalf("a2acli send %q --service-url %q failed: %v\nOutput: %s", prompt, serviceURL, err, string(outSend))
 	}
-	if !strings.Contains(string(outSend), "I am responding to a2acli.") {
-		t.Fatalf("a2acli send output missing expected response: %s", string(outSend))
+	gotSend := string(outSend)
+	wantSendSubstr := "I am responding to a2acli."
+	if !strings.Contains(gotSend, wantSendSubstr) {
+		t.Errorf("a2acli send %q --service-url %q = %q, want substring %q", prompt, serviceURL, gotSend, wantSendSubstr)
 	}
+
+	// Ensure a2aclient package reference remains exercised if needed by callers
+	_ = a2aclient.WithJSONRPCTransport
+}
+
+func resolveA2ACLI(t *testing.T) string {
+	t.Helper()
+	if cliPath, err := exec.LookPath("a2acli"); err == nil {
+		return cliPath
+	}
+	absPath, err := filepath.Abs("../../../../a2acli/bin/a2acli")
+	if err == nil {
+		if cliPath, err := exec.LookPath(absPath); err == nil {
+			return cliPath
+		}
+	}
+	t.Skip("a2acli binary not found in PATH or ../../../../a2acli/bin/a2acli, skipping CLI integration test")
+	return ""
+}
+
+type mockEntity struct {
+	name string
+	obs  []string
+	act  string
+}
+
+func (m *mockEntity) Name() string { return m.name }
+
+func (m *mockEntity) Observe(_ context.Context, observation string) error {
+	m.obs = append(m.obs, observation)
+	return nil
+}
+
+func (m *mockEntity) Act(_ context.Context, _ types.ActionSpec) (string, error) {
+	return m.act, nil
 }

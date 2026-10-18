@@ -28,7 +28,7 @@ func (d *DynamicContextComponent) PreAct(ctx context.Context, _ types.ActionSpec
 	// For Phase 2, let's keep it simple: just the question.
 	res, err := d.Model.Generate(ctx, d.Prompt)
 	if err != nil {
-		return "", fmt.Errorf("dynamic component %s: %w", d.CompName, err)
+		return "", fmt.Errorf("dynamic component %q: %w", d.CompName, err)
 	}
 	return strings.TrimSpace(res), nil
 }

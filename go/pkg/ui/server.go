@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/ghchinoy/pandemonium/pkg/types"
 	"github.com/gorilla/websocket"
+
+	"github.com/ghchinoy/pandemonium/pkg/types"
 )
 
 var upgrader = websocket.Upgrader{
@@ -34,16 +35,17 @@ func NewServer(eventSource chan types.Event, webPath string) *Server {
 
 // Start launches the HTTP and WebSocket server on the specified port.
 func (s *Server) Start(port int) {
-	http.HandleFunc("/ws", s.handleWS)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws", s.handleWS)
 	// Serve static files from the configured directory
-	http.Handle("/", http.FileServer(http.Dir(s.WebPath)))
+	mux.Handle("/", http.FileServer(http.Dir(s.WebPath)))
 
 	fmt.Printf("[Server] Starting X-Ray UI at http://localhost:%d\n", port)
-	
+
 	// Start event broadcaster
 	go s.broadcast()
 
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), mux))
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
@@ -59,7 +61,11 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) broadcast() {
 	for e := range s.events {
-		data, _ := json.Marshal(e)
+		data, err := json.Marshal(e)
+		if err != nil {
+			log.Printf("Error marshaling event: %v", err)
+			continue
+		}
 		s.mu.Lock()
 		for conn := range s.conns {
 			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {

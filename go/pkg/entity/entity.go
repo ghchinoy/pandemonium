@@ -10,9 +10,3 @@ type ActionSpec = types.ActionSpec
 
 // Entity is the base interface for all actors.
 type Entity = types.Entity
-
-// WithLogging extends Entity with debugging capabilities.
-type WithLogging interface {
-	Entity
-	GetLastLog() map[string]any
-}

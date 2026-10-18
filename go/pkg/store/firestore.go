@@ -5,8 +5,9 @@ import (
 	"fmt"
 
 	"cloud.google.com/go/firestore"
-	"github.com/ghchinoy/pandemonium/pkg/types"
 	"google.golang.org/api/iterator"
+
+	"github.com/ghchinoy/pandemonium/pkg/types"
 )
 
 // FirestoreStore implements StateStore using Google Cloud Firestore.
@@ -25,19 +26,21 @@ func NewFirestoreStore(ctx context.Context, projectID string) (*FirestoreStore, 
 
 // SaveScenario persists a scenario template to Firestore.
 func (s *FirestoreStore) SaveScenario(ctx context.Context, sc types.Scenario) error {
-	_, err := s.client.Collection("scenarios").Doc(sc.Name).Set(ctx, sc)
-	return err
+	if _, err := s.client.Collection("scenarios").Doc(sc.Name).Set(ctx, sc); err != nil {
+		return fmt.Errorf("saving scenario %q to firestore: %w", sc.Name, err)
+	}
+	return nil
 }
 
 // GetScenario retrieves a scenario template by name.
 func (s *FirestoreStore) GetScenario(ctx context.Context, name string) (types.Scenario, error) {
 	doc, err := s.client.Collection("scenarios").Doc(name).Get(ctx)
 	if err != nil {
-		return types.Scenario{}, err
+		return types.Scenario{}, fmt.Errorf("fetching scenario %q from firestore: %w", name, err)
 	}
 	var sc types.Scenario
 	if err := doc.DataTo(&sc); err != nil {
-		return types.Scenario{}, err
+		return types.Scenario{}, fmt.Errorf("decoding scenario %q from firestore: %w", name, err)
 	}
 	return sc, nil
 }
@@ -52,7 +55,7 @@ func (s *FirestoreStore) ListScenarios(ctx context.Context) ([]string, error) {
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("listing scenarios from firestore: %w", err)
 		}
 		names = append(names, doc.Ref.ID)
 	}
@@ -61,8 +64,10 @@ func (s *FirestoreStore) ListScenarios(ctx context.Context) ([]string, error) {
 
 // SaveEvent adds a simulation event to a session's event sub-collection.
 func (s *FirestoreStore) SaveEvent(ctx context.Context, sessionID string, event types.Event) error {
-	_, _, err := s.client.Collection("sessions").Doc(sessionID).Collection("events").Add(ctx, event)
-	return err
+	if _, _, err := s.client.Collection("sessions").Doc(sessionID).Collection("events").Add(ctx, event); err != nil {
+		return fmt.Errorf("saving event for session %q to firestore: %w", sessionID, err)
+	}
+	return nil
 }
 
 // GetSessionEvents retrieves all events associated with a specific session ID.
@@ -75,11 +80,11 @@ func (s *FirestoreStore) GetSessionEvents(ctx context.Context, sessionID string)
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("listing events for session %q from firestore: %w", sessionID, err)
 		}
 		var e types.Event
 		if err := doc.DataTo(&e); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("decoding event for session %q from firestore: %w", sessionID, err)
 		}
 		events = append(events, e)
 	}

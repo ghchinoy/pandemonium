@@ -8,28 +8,29 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/ghchinoy/pandemonium/pkg/types"
 )
 
 var (
 	titleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(lipgloss.Color("#7D56F4")).
-		Padding(0, 1)
+			Bold(true).
+			Foreground(lipgloss.Color("#FAFAFA")).
+			Background(lipgloss.Color("#7D56F4")).
+			Padding(0, 1)
 
 	infoStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#AFBEE1")).
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("#3C3C3C"))
+			Foreground(lipgloss.Color("#AFBEE1")).
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("#3C3C3C"))
 
 	agentStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#04B575")).
-		Bold(true)
+			Foreground(lipgloss.Color("#04B575")).
+			Bold(true)
 
 	worldStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#EE6FF8")).
-		Italic(true)
+			Foreground(lipgloss.Color("#EE6FF8")).
+			Italic(true)
 )
 
 type model struct {
@@ -45,7 +46,7 @@ type eventMsg types.Event
 
 // NewTUI initializes a new Bubble Tea program for simulation observation.
 func NewTUI(events chan types.Event) *tea.Program {
-	m := model{
+	m := &model{
 		events:       events,
 		agents:       make(map[string]string),
 		remoteAgents: make(map[string]bool),
@@ -53,17 +54,11 @@ func NewTUI(events chan types.Event) *tea.Program {
 	return tea.NewProgram(m, tea.WithAltScreen())
 }
 
-func (m model) Init() tea.Cmd {
+func (m *model) Init() tea.Cmd {
 	return waitForEvent(m.events)
 }
 
-func waitForEvent(events chan types.Event) tea.Cmd {
-	return func() tea.Msg {
-		return eventMsg(<-events)
-	}
-}
-
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
 		cmds []tea.Cmd
@@ -100,6 +95,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m *model) View() string {
+	if !m.ready {
+		return "\n  Initializing..."
+	}
+
+	sidebar := m.sidebarView()
+	mainView := fmt.Sprintf("%s\n%s\n%s", m.headerView(), m.viewport.View(), m.footerView())
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, mainView, sidebar)
+}
+
+func waitForEvent(events chan types.Event) tea.Cmd {
+	return func() tea.Msg {
+		return eventMsg(<-events)
+	}
 }
 
 func (m *model) processEvent(e types.Event) {
@@ -147,30 +159,19 @@ func (m *model) processEvent(e types.Event) {
 	}
 }
 
-func (m model) View() string {
-	if !m.ready {
-		return "\n  Initializing..."
-	}
-
-	sidebar := m.sidebarView()
-	mainView := fmt.Sprintf("%s\n%s\n%s", m.headerView(), m.viewport.View(), m.footerView())
-
-	return lipgloss.JoinHorizontal(lipgloss.Top, mainView, sidebar)
-}
-
-func (m model) headerView() string {
+func (m *model) headerView() string {
 	title := titleStyle.Render("PANDEMONIUM SOCIAL SIMULATION")
-	line := strings.Repeat("─", maxInt(0, m.viewport.Width-lipgloss.Width(title)))
+	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(title)))
 	return lipgloss.JoinHorizontal(lipgloss.Center, title, line)
 }
 
-func (m model) footerView() string {
+func (m *model) footerView() string {
 	info := infoStyle.Render(fmt.Sprintf("%3.f%%", m.viewport.ScrollPercent()*100))
-	line := strings.Repeat("─", maxInt(0, m.viewport.Width-lipgloss.Width(info)))
+	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(info)))
 	return lipgloss.JoinHorizontal(lipgloss.Center, line, info)
 }
 
-func (m model) sidebarView() string {
+func (m *model) sidebarView() string {
 	var sb strings.Builder
 	sb.WriteString(titleStyle.Width(26).Align(lipgloss.Center).Render("AGENTS"))
 	sb.WriteString("\n\n")
@@ -190,7 +191,7 @@ func (m model) sidebarView() string {
 		}
 		sb.WriteString(agentStyle.Render(fmt.Sprintf(" ● %s", displayName)))
 		sb.WriteString("\n")
-		
+
 		// Wrap status text for sidebar
 		wrappedStatus := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#777777")).
@@ -198,16 +199,9 @@ func (m model) sidebarView() string {
 			Width(24).
 			PaddingLeft(4).
 			Render(status)
-		
+
 		sb.WriteString(wrappedStatus)
 		sb.WriteString("\n\n")
 	}
 	return infoStyle.Width(28).Height(m.viewport.Height + 2).Render(sb.String())
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

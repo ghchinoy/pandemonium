@@ -24,33 +24,6 @@ func (e *BaseEntity) Name() string {
 	return e.EntityName
 }
 
-func (e *BaseEntity) runPhase(ctx context.Context, call func(component.ContextComponent) (string, error)) (map[string]string, error) {
-	var wg sync.WaitGroup
-	mu := sync.Mutex{}
-	contexts := make(map[string]string)
-	var firstErr error
-
-	for name, comp := range e.Components {
-		wg.Add(1)
-		go func(n string, c component.ContextComponent) {
-			defer wg.Done()
-			val, err := call(c)
-			mu.Lock()
-			defer mu.Unlock()
-			if err != nil {
-				if firstErr == nil {
-					firstErr = fmt.Errorf("component %s: %w", n, err)
-				}
-				return
-			}
-			contexts[n] = val
-		}(name, comp)
-	}
-
-	wg.Wait()
-	return contexts, firstErr
-}
-
 // Act implements the Entity interface.
 func (e *BaseEntity) Act(ctx context.Context, spec types.ActionSpec) (string, error) {
 	e.Lock.Lock()
@@ -66,10 +39,10 @@ func (e *BaseEntity) Act(ctx context.Context, spec types.ActionSpec) (string, er
 
 	if e.Bus != nil {
 		e.Bus.Publish(types.Event{
-			Type:  types.EventThought,
-			Actor: e.EntityName,
+			Type:    types.EventThought,
+			Actor:   e.EntityName,
 			Message: fmt.Sprintf("%s is considering their action...", e.EntityName),
-			Data:  contexts,
+			Data:    contexts,
 		})
 	}
 
@@ -121,6 +94,33 @@ func (e *BaseEntity) Observe(ctx context.Context, observation string) error {
 	return e.update(ctx)
 }
 
+func (e *BaseEntity) runPhase(_ context.Context, call func(component.ContextComponent) (string, error)) (map[string]string, error) {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	contexts := make(map[string]string)
+	var firstErr error
+
+	for name, comp := range e.Components {
+		wg.Add(1)
+		go func(n string, c component.ContextComponent) {
+			defer wg.Done()
+			val, err := call(c)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				if firstErr == nil {
+					firstErr = fmt.Errorf("component %q: %w", n, err)
+				}
+				return
+			}
+			contexts[n] = val
+		}(name, comp)
+	}
+
+	wg.Wait()
+	return contexts, firstErr
+}
+
 func (e *BaseEntity) update(ctx context.Context) error {
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(e.Components))
@@ -143,6 +143,5 @@ func (e *BaseEntity) update(ctx context.Context) error {
 			return err
 		}
 	}
-		return nil
-	}
-	
+	return nil
+}

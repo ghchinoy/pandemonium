@@ -1,4 +1,3 @@
-// Package vector implements vector storage and semantic search.
 package vector
 
 import (
@@ -45,7 +44,7 @@ func (s *MarkdownStore) Add(_ context.Context, items ...Item) error {
 
 // Search for MarkdownStore is currently a no-op (Full Context strategy).
 func (s *MarkdownStore) Search(_ context.Context, _ []float64, _ int) ([]Item, error) {
-	// For now, return empty. The 'Timeline' or 'Loader' usually handles 
+	// For now, return empty. The 'Timeline' or 'Loader' usually handles
 	// providing the full text from the file if this strategy is chosen.
 	return nil, nil
 }

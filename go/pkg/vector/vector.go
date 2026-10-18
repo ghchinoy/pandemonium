@@ -1,3 +1,4 @@
+// Package vector implements vector storage and semantic search.
 package vector
 
 import (
