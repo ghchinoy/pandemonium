@@ -361,11 +361,12 @@ Allows multiple agents to act concurrently within a single step.
 - **Aggregation**: The Game Master receives all agent actions as a single combined context for world resolution.
 - **Concurrency**: Leverages Go's goroutines to parallelize the "Internal Monologues" of all active agents.
 
-### Ticker (The Real-Time Engine)
-A clock-driven loop where agents act asynchronously based on their "reaction time" or events in the environment. This moves the simulation from a discrete "Board Game" style to a continuous "Digital Twin" style.
+### Asynchronous (The Independent-Loop Engine)
+Ported from Concordia v2.4's `Asynchronous` engine (`concordia/environment/engines/asynchronous.py`), each player entity runs its own independent `Observe -> Act -> GM Resolve` loop concurrently in its own goroutine at its own pace against a synchronized Game Master. This moves the simulation from a discrete "Board Game" style to a continuous "Digital Twin" style.
 
-### GM Switcher
-Support for multiple Game Masters, allowing the engine to select different "Rule Sets" (GM Entities) based on the simulation's current state.
+### GM Switcher & Step Skipping
+- **GM Switcher (`OutputNextGameMaster`)**: Supports multiple Game Masters (`GMs []types.Entity`), allowing the engine to transition between different rule sets or scene GMs across turns.
+- **Step Skipping (`OutputSkipThisStep`)**: Supports background-only environmental turns (`skip_this_step`) where the Game Master advances world state without polling a player action.
 
 ---
 

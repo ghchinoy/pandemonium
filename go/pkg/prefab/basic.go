@@ -47,32 +47,70 @@ func (c *ConcatActComponent) GetActionAttempt(ctx context.Context, contexts map[
 }
 
 // NewThreeKeyQuestionsAgent builds the standard reasoning agent.
-func NewThreeKeyQuestionsAgent(_ context.Context, name string, persona string, model llm.Model, embedder vector.Embedder, store vector.Store) types.Entity {
+func NewThreeKeyQuestionsAgent(ctx context.Context, name string, persona string, model llm.Model, embedder vector.Embedder, store vector.Store) types.Entity {
+	return NewThreeKeyQuestionsAgentWithGoal(ctx, name, persona, "", model, embedder, store)
+}
+
+// NewThreeKeyQuestionsAgentWithGoal builds a reasoning agent with an optional overarching goal
+// and all three Concordia key questions (SituationPerception, SelfPerception, PersonBySituation).
+func NewThreeKeyQuestionsAgentWithGoal(_ context.Context, name string, persona string, goal string, model llm.Model, embedder vector.Embedder, store vector.Store) types.Entity {
 	mem := &memory.AssociativeMemory{
 		Store:    store,
 		Embedder: embedder,
 		K:        5,
 	}
 	timeline := memory.NewTimelineMemory("Timeline", 10)
-
-	components := map[string]component.ContextComponent{
-		"Instructions": &component.Constant{CompName: "Instructions", Value: persona},
-		"Memory":       mem,
-		"Timeline":     timeline,
-		"SelfPerception": &component.DynamicContextComponent{
-			CompName: "SelfPerception",
-			Prompt:   fmt.Sprintf("Based on your persona and recent memories, who are you? Persona: %s", persona),
-			Model:    model,
-		},
-		"SituationPerception": &component.DynamicContextComponent{
-			CompName: "SituationPerception",
-			Prompt:   "Based on recent observations, what kind of situation are you in right now? Describe it in one sentence.",
-			Model:    model,
-		},
+	reflection := &memory.ReflectionComponent{
+		CompName: "Reflection",
+		Timeline: timeline,
+		Store:    store,
+		Embedder: embedder,
+		Model:    model,
+		Interval: 3,
 	}
 
-	// Decision is the final step. Hybrid approach: Instructions -> Memory -> Timeline -> Reflections
-	order := []string{"Instructions", "Memory", "Timeline", "SelfPerception", "SituationPerception"}
+	perceptionSources := []component.ContextComponent{timeline}
+	var goalComp *component.Constant
+	if goal != "" {
+		goalComp = &component.Constant{CompName: "Goal", Value: goal}
+		perceptionSources = append([]component.ContextComponent{goalComp}, perceptionSources...)
+	}
+
+	selfPerception := &component.DynamicContextComponent{
+		CompName:       "SelfPerception",
+		Prompt:         fmt.Sprintf("Question: Based on %s's persona and recent history, what kind of person is %s? Persona: %s\nAnswer in one sentence.", name, name, persona),
+		Model:          model,
+		ContextSources: perceptionSources,
+	}
+	situationPerception := &component.DynamicContextComponent{
+		CompName:       "SituationPerception",
+		Prompt:         fmt.Sprintf("Question: Based on recent observations, what kind of situation is %s in right now?\nAnswer in one sentence.", name),
+		Model:          model,
+		ContextSources: perceptionSources,
+	}
+	personBySituation := &component.DynamicContextComponent{
+		CompName:       "PersonBySituation",
+		Prompt:         fmt.Sprintf("Question: What would a person like %s (%s) do in a situation like this?\nAnswer in one sentence.", name, persona),
+		Model:          model,
+		ContextSources: perceptionSources,
+	}
+
+	components := map[string]component.ContextComponent{
+		"Instructions":        &component.Constant{CompName: "Instructions", Value: persona},
+		"Memory":              mem,
+		"Timeline":            timeline,
+		"Reflection":          reflection,
+		"SelfPerception":      selfPerception,
+		"SituationPerception": situationPerception,
+		"PersonBySituation":   personBySituation,
+	}
+
+	order := []string{"Instructions"}
+	if goalComp != nil {
+		components["Goal"] = goalComp
+		order = append(order, "Goal")
+	}
+	order = append(order, "Memory", "Timeline", "Reflection", "SituationPerception", "SelfPerception", "PersonBySituation")
 
 	return &entity.BaseEntity{
 		EntityName: name,

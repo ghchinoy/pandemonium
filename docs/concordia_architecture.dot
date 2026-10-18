@@ -1,0 +1,44 @@
+// Concordia Entity-Component-Engine architecture overview.
+digraph ConcordiaArchitecture {
+  label = "Concordia · Entity-Component-Engine model";
+  rankdir = LR;
+  ranksep = 0.65;
+  nodesep = 0.4;
+
+  subgraph cluster_Engine {
+    label = "Simulation Engine";
+    Loop [label="Turn Loop", class="primary"];
+  }
+
+  subgraph cluster_GM {
+    label = "Game Master (Entity)";
+    class = "accent";
+    GMAct     [label="Act()", class="agent-violet code"];
+    GMObserve [label="Observe()", class="agent-violet code"];
+    GMRes     [label="Resolution\nComponent"];
+    GMMem     [label="World Memory", class="store"];
+  }
+
+  subgraph cluster_Agent {
+    label = "Player Agent (Entity)";
+    AgentAct     [label="Act()", class="agent-blue code"];
+    AgentObserve [label="Observe()", class="agent-blue code"];
+    ActComp      [label="ActingComponent\n(LLM)", class="emphasis"];
+    PlanComp     [label="Perception\nComponents"];
+    MemComp      [label="Associative\nMemory", class="store"];
+  }
+
+  Loop -> GMAct        [label="1. Next acting?\n2. Make observation\n4. Resolve action", class="primary"];
+  Loop -> GMObserve    [label="5. World event", class="async"];
+  Loop -> AgentObserve [label="2b. Observation", class="async"];
+  Loop -> AgentAct     [label="3. Act!", class="primary"];
+
+  GMAct -> GMRes [label="context"];
+  GMAct -> GMMem [label="recall"];
+  GMObserve -> GMMem [class="muted"];
+
+  AgentAct -> ActComp  [label="synthesize"];
+  ActComp -> PlanComp  [label="context"];
+  ActComp -> MemComp   [label="retrieve"];
+  AgentObserve -> MemComp [class="muted"];
+}

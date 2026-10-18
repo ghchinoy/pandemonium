@@ -61,7 +61,7 @@ func main() {
 		log.Fatalf("Failed to initialize store: %v", err)
 	}
 
-	agent := prefab.NewThreeKeyQuestionsAgent(ctx, ac.Name, ac.Persona, model, embedder, store)
+	agent := prefab.NewThreeKeyQuestionsAgentWithGoal(ctx, ac.Name, ac.Persona, ac.Goal, model, embedder, store)
 
 	// CRITICAL: Set the Bus so thoughts are emitted locally
 	if base, ok := agent.(*entity.BaseEntity); ok {

@@ -1,0 +1,38 @@
+// Pandemonium BaseEntity.Act concurrent lifecycle.
+digraph AgentFlow {
+  label = "Pandemonium · concurrent Act() lifecycle";
+  rankdir = TB;
+  ranksep = 0.5;
+  nodesep = 0.35;
+
+  Start [label="Act(ActionSpec)", class="terminal code"];
+
+  subgraph cluster_PreAct {
+    label = "1. PRE_ACT Phase (parallel goroutines)";
+    class = "accent";
+    runPreAct [label="runPhase(PreAct)", class="emphasis code"];
+    C1 [label="Instructions & Goal\n(Constant)"];
+    C2 [label="Memory & Timeline\n(Vector & Buffer)"];
+    C3 [label="Reflection\n(Synthesized Insight)"];
+    C4 [label="Three Key Questions\nSituation · Self · PersonBySituation"];
+  }
+
+  PublishTrace [label="EventBus.Publish(Thought)", class="code"];
+  ActComp      [label="ConcatActComponent\n(Gemini SDK)", class="primary"];
+
+  subgraph cluster_PostAct {
+    label = "3. POST_ACT & 4. UPDATE (parallel goroutines)";
+    runPostAct [label="runPhase(PostAct)", class="code"];
+    Update     [label="update(ctx) · Reflection", class="code"];
+  }
+
+  End [label="Action string", class="positive terminal"];
+
+  Start -> runPreAct [class="primary"];
+  runPreAct -> {C1 C2 C3 C4};
+  {C1 C2 C3 C4} -> PublishTrace [class="async"];
+  PublishTrace -> ActComp [label="context map", class="primary"];
+  ActComp -> runPostAct   [label="action attempt", class="primary"];
+  runPostAct -> Update;
+  Update -> End [class="positive"];
+}

@@ -72,8 +72,85 @@ func TestAssociativeMemory(t *testing.T) {
 	}
 }
 
+func TestReflectionComponent_SyncAndAsync(t *testing.T) {
+	ctx := t.Context()
+	spec := types.ActionSpec{CallToAction: "What next?"}
+
+	for _, async := range []bool{false, true} {
+		name := "sync"
+		if async {
+			name = "async"
+		}
+		t.Run(name, func(t *testing.T) {
+			tm := memory.NewTimelineMemory("Timeline", 5)
+			_, _ = tm.PreObserve(ctx, "The blizzard intensifies.")
+			_, _ = tm.PostAct(ctx, "check the firewood")
+
+			store := vector.NewMemoryStore()
+			rc := &memory.ReflectionComponent{
+				CompName: "Reflection",
+				Timeline: tm,
+				Store:    store,
+				Embedder: &lengthEmbedder{},
+				Model:    &fixedReflectionModel{insight: "We must conserve heat."},
+				Interval: 2,
+				Async:    async,
+			}
+
+			// Step 1: below interval (1 % 2 != 0)
+			if err := rc.Update(ctx); err != nil {
+				t.Fatalf("rc.Update(ctx) step 1 returned unexpected error: %v", err)
+			}
+			if got, _ := rc.PreAct(ctx, spec); got != "" {
+				t.Errorf("rc.PreAct(ctx, %+v) at step 1 = %q, want empty", spec, got)
+			}
+
+			// Step 2: triggers reflection synthesis (2 % 2 == 0)
+			if err := rc.Update(ctx); err != nil {
+				t.Fatalf("rc.Update(ctx) step 2 returned unexpected error: %v", err)
+			}
+			rc.Wait()
+
+			gotFresh, err := rc.PreAct(ctx, spec)
+			if err != nil {
+				t.Fatalf("rc.PreAct(ctx, %+v) at step 2 returned unexpected error: %v", spec, err)
+			}
+			wantFresh := "Recent reflection [fresh]: We must conserve heat."
+			if gotFresh != wantFresh {
+				t.Errorf("rc.PreAct(ctx, %+v) at step 2 = %q, want %q", spec, gotFresh, wantFresh)
+			}
+
+			// Step 3: ages by 1 turn without new reflection
+			if err := rc.Update(ctx); err != nil {
+				t.Fatalf("rc.Update(ctx) step 3 returned unexpected error: %v", err)
+			}
+			gotAged, _ := rc.PreAct(ctx, spec)
+			wantAged := "Recent reflection [1 turns old]: We must conserve heat."
+			if gotAged != wantAged {
+				t.Errorf("rc.PreAct(ctx, %+v) at step 3 = %q, want %q", spec, gotAged, wantAged)
+			}
+
+			if len(store.Items()) != 1 {
+				t.Errorf("len(store.Items()) = %d, want 1", len(store.Items()))
+			}
+		})
+	}
+}
+
 type lengthEmbedder struct{}
 
 func (e *lengthEmbedder) Embed(_ context.Context, text string) ([]float64, error) {
 	return []float64{float64(len(text)), 1, 0}, nil
+}
+
+type fixedReflectionModel struct {
+	insight string
+}
+
+func (m *fixedReflectionModel) Generate(_ context.Context, _ string) (string, error) {
+	return m.insight, nil
+}
+
+func (m *fixedReflectionModel) GenerateWithSystem(_ context.Context, _, _ string) (string, error) {
+	return m.insight, nil
 }

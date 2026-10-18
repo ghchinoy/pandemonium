@@ -1,0 +1,53 @@
+// Pandemonium system architecture: Pluggable Engines, Entities, EventBus, and UI observers.
+digraph PandemoniumArchitecture {
+  label = "Pandemonium · system architecture";
+  rankdir = LR;
+  ranksep = 0.65;
+  nodesep = 0.4;
+
+  subgraph cluster_Engine {
+    label = "Engines (pkg/engine)";
+    SeqEngine   [label="Sequential · Simultaneous\nAsynchronous", class="primary"];
+    StepCtrl    [label="StepController\nPlay · Pause · Step", class="code"];
+  }
+
+  subgraph cluster_World {
+    label = "World State";
+    GM       [label="Game Master(s)", class="agent-violet"];
+    WorldMem [label="WorldMemory", class="store code"];
+  }
+
+  subgraph cluster_Agent {
+    label = "Agent (pkg/entity)";
+    Agent      [label="BaseEntity", class="agent-blue"];
+    Components [label="Components\nInstructions · Goal · Memory\nTimeline · Reflection · 3 Key Questions", class="note"];
+    AgentStore [label="vector.Store", class="store code"];
+  }
+
+  subgraph cluster_Bus {
+    label = "Telemetry (pkg/types)";
+    class = "accent";
+    EventBus [label="EventBus", class="emphasis"];
+  }
+
+  subgraph cluster_Observability {
+    label = "Observers & Platform (pkg/ui)";
+    TUI   [label="Bubble Tea TUI", class="terminal"];
+    WebUI [label="Lit Command Center", class="terminal"];
+    Log   [label="JSONL & Checkpoint", class="store"];
+  }
+
+  StepCtrl -> SeqEngine  [label="gate", class="muted"];
+  SeqEngine -> GM        [label="1. Orchestrate", class="primary"];
+  SeqEngine -> Agent     [label="2. Observe / Act"];
+  SeqEngine -> EventBus  [label="3. Events", class="async"];
+
+  GM -> WorldMem         [class="muted"];
+  Agent -> Components    [label="PreAct / PostAct"];
+  Components -> AgentStore [class="muted"];
+  Agent -> EventBus      [label="4. Thoughts", class="async"];
+
+  EventBus -> TUI   [label="channel", class="async"];
+  EventBus -> WebUI [label="WebSocket", class="async"];
+  EventBus -> Log   [label="persist", class="async"];
+}

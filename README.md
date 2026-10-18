@@ -69,6 +69,9 @@ docs/                   # Architecture guides, specifications, and tutorials/
    - `-scenario`: Path to a YAML scenario file or built-in template name (default: `pub.yaml`).
    - `-log`: Path to save the simulation trace in JSONL format.
    - `-web`: Path to the web frontend build directory (default: `../web/dist`).
+   - `-checkpoint`: Path to save a simulation checkpoint JSON after each step.
+   - `-resume`: Path to a checkpoint JSON file to resume from.
+   - `-start-paused`: Start the simulation in a paused state for interactive single-stepping via the Web Command Center or REST API.
 
 5. **Observe**:
    - **Terminal**: Interactive TUI (Press `q` to exit).
@@ -92,6 +95,7 @@ This project uses **bd (beads)** for issue tracking.
   - [02: Hosting & Inspecting a Standalone A2A Agent Node](docs/tutorials/02-standalone-a2a-agent.md)
   - [03: Orchestrating a Distributed Simulation over A2A](docs/tutorials/03-distributed-simulation.md)
   - [04: Custom Scenarios, Turn Strategies & Persistent Memory](docs/tutorials/04-custom-scenarios-and-memory.md)
+  - [05: Advanced Simulation Engines (`Simultaneous` & `Asynchronous`)](docs/tutorials/05-advanced-engines.md)
 - **Explanation & Architecture**:
   - [Project Primer](docs/PRIMER.md) - The TRPG analogy and high-level concepts.
   - [Go Adaptation Guide](docs/GO_ADAPTATION.md) - Technical implementation and roadmap.

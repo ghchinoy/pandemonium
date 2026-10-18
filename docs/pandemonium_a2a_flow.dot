@@ -1,0 +1,43 @@
+// Distributed simulation orchestration via A2A v2 protocol.
+digraph A2AFlow {
+  label = "Pandemonium · distributed A2A orchestration";
+  rankdir = LR;
+  ranksep = 0.7;
+  nodesep = 0.45;
+
+  subgraph cluster_Orchestrator {
+    label = "Pandemonium Orchestrator (local process)";
+    Engine [label="Sequential Engine", class="primary"];
+    GM     [label="Game Master", class="agent-violet"];
+    Alice  [label="Alice (local)", class="agent-blue"];
+    Proxy  [label="A2AProxyEntity\n(Bob stub)", class="emphasis"];
+  }
+
+  subgraph cluster_RemoteNode {
+    label = "Agent Node (remote process)";
+    class = "accent";
+    Card   [label="AgentCard\n/.well-known/agent-card.json", class="note code"];
+    A2ASrv [label="EntityExecutor\n(a2asrv)", class="emphasis"];
+    Bob    [label="Bob (remote)", class="agent-teal"];
+  }
+
+  Engine -> GM    [label="orchestrate", class="muted"];
+  Engine -> Alice [label="in-process Act/Observe", class="weak"];
+
+  Engine -> Proxy [label="1. SetContextID"];
+  Proxy -> Card   [label="0. Resolve card", class="muted"];
+
+  Engine -> Proxy [label="2. Observe(ctx)"];
+  Proxy -> A2ASrv [label="SendMessage\n(type=observation)", class="async"];
+  A2ASrv -> Bob   [label="Observe()"];
+
+  Engine -> Proxy [label="3. Act(ctx)", class="primary"];
+  Proxy -> A2ASrv [label="SendStreamingMessage", class="primary"];
+  A2ASrv -> Bob   [label="Act()"];
+
+  Bob -> A2ASrv   [label="EventThought", class="async", constraint=false];
+  A2ASrv -> Proxy [label="TaskArtifactUpdateEvent\n(reasoning trace)", class="async", constraint=false];
+
+  Bob -> A2ASrv   [label="action", constraint=false];
+  A2ASrv -> Proxy [label="TaskStatusUpdateEvent\n(Completed)", class="positive", constraint=false];
+}

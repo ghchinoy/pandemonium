@@ -22,6 +22,7 @@ agents:
     # url: "http://remote-bob:9001/invoke" # If remote
 
 settings:
+  engine: "sequential" # or "simultaneous", "asynchronous"
   min_steps: 4
   max_steps: 10
   strategy: "sequential" # or "rotation", "random"
@@ -42,14 +43,18 @@ A list of immutable truths maintained by the Game Master. These are used to prev
 
 ### 4. Agent Configuration (`agents`)
 Describes the participants. 
-- **Local Agents**: Require a `persona`. They use the built-in "Three Key Questions" prefab.
+- **Local Agents**: Require a `persona` (and optional `goal`). They use the built-in "Three Key Questions" prefab (`SituationPerception`, `SelfPerception`, `PersonBySituation`, plus `ReflectionComponent`).
 - **`formative_memories`**: A list of strings representing pre-existing knowledge or background (e.g., "I have lived here 10 years"). These are injected into the agent's memory store at boot.
 - **Remote Agents**: Use the `url` field. Pandemonium will fetch their **Agent Card** via A2A and orchestrate them over the network.
 
 ### 5. Engine Settings (`settings`)
+- **`engine`**:
+    - `sequential`: Turn-based loop where one agent acts per step (Default).
+    - `simultaneous`: All active players observe and act concurrently in goroutines within each step before aggregated GM resolution.
+    - `asynchronous`: Each player runs an independent `Observe -> Act` goroutine loop at its own pace against a synchronized GM.
 - **`min_steps`**: The number of turns before the GM is allowed to check for termination.
-- **`max_steps`**: The hard cut-off for the simulation.
-- **`strategy`**:
+- **`max_steps`**: The hard cut-off for the simulation (or per-player iteration cap in `asynchronous` mode).
+- **`strategy`** (used by `sequential` engine):
     - `sequential`: GM decides who acts next (Narrative).
     - `rotation`: Strict round-robin (Fair).
     - `random`: Random actor selection (Chaos).

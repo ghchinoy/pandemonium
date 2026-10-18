@@ -22,6 +22,9 @@ func main() {
 	logFile := flag.String("log", "", "path to file for simulation event logging (JSONL format)")
 	scenarioPath := flag.String("scenario", "pub.yaml", "path to scenario YAML file or builtin name")
 	webPath := flag.String("web", "../web/dist", "path to web frontend directory")
+	checkpointPath := flag.String("checkpoint", "", "path to save simulation checkpoint JSON after each step")
+	resumePath := flag.String("resume", "", "path to checkpoint JSON file to resume from")
+	startPaused := flag.Bool("start-paused", false, "start simulation in paused state for interactive stepping")
 	flag.Parse()
 
 	// Load environment variables from .env if present
@@ -48,11 +51,21 @@ func main() {
 		log.Fatalf("Failed to load scenario: %v", err)
 	}
 
-	// 3. Initialize Engine
-	sim := &engine.Sequential{
-		Bus:      bus,
-		MinSteps: simData.Config.Settings.MinSteps,
-		Strategy: simData.Config.Settings.Strategy,
+	// 3. Initialize Engine & StepController
+	ctrl := engine.NewStepController(*startPaused)
+	mgr := engine.NewManager(nil, model, embedder, bus)
+	mgr.RegisterSession("default", simData.Config.Name, ctrl)
+
+	sim := engine.New(simData.Config.Settings, bus, *checkpointPath)
+	engine.AttachStepController(sim, ctrl)
+	if *resumePath != "" {
+		cp, err := engine.LoadCheckpoint(*resumePath)
+		if err != nil {
+			log.Fatalf("Failed to load checkpoint: %v", err)
+		}
+		if seq, ok := sim.(*engine.Sequential); ok {
+			seq.Restore(cp, simData.GM, simData.Players)
+		}
 	}
 
 	// 4. Set up subscribers
@@ -81,8 +94,10 @@ func main() {
 		}(*logFile, fileEvents)
 	}
 
-	// 4. Start X-Ray Server
+	// 5. Start X-Ray & Command Center Server
 	server := ui.NewServer(webEvents, *webPath)
+	server.Controller = ctrl
+	server.Manager = mgr
 	go server.Start(8080)
 
 	// 5. Register Agents in UI immediately

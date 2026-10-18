@@ -1,0 +1,46 @@
+// Concordia "Three Key Questions" reasoning chain.
+digraph ThreeKeyQuestions {
+  label = "Concordia · Three Key Questions prefab";
+  rankdir = TB;
+  ranksep = 0.5;
+  nodesep = 0.35;
+  newrank = true;
+
+  subgraph cluster_Agent {
+    label = "Agent Cognitive Components (NewThreeKeyQuestionsAgentWithGoal)";
+    class = "accent";
+
+    Persona   [label="Instructions & Goal\n(Constant)", class="note"];
+    Memory    [label="AssociativeMemory\n(Vector Recall)", class="store"];
+    Timeline  [label="TimelineMemory\n(Recent Events)", class="store"];
+    Reflect   [label="ReflectionComponent\n(Periodic Synthesis)", class="emphasis"];
+
+    Situation [label="1. SituationPerception\n\"What situation am I in?\"", class="agent-teal"];
+    Self      [label="2. SelfPerception\n\"What kind of person am I?\"", class="agent-blue"];
+    BySit     [label="3. PersonBySituation\n\"What would someone like me do?\"", class="agent-violet"];
+
+    Concat    [label="ConcatActComponent\n(Final Prompt Builder)", class="primary"];
+
+    {rank=same; Persona; Memory; Timeline; Reflect;}
+    {rank=same; Situation; Self; BySit;}
+  }
+
+  LLM    [label="Gemini LLM API", class="external"];
+  Action [label="Grounded Action", class="positive terminal"];
+
+  Persona -> {Situation Self BySit}  [label="goal", class="muted"];
+  Timeline -> {Situation Self BySit} [label="recent turns", class="muted"];
+  Timeline -> Reflect                [label="every N turns", class="async", constraint=false];
+  Reflect -> Memory                  [label="store insight", class="async", constraint=false];
+
+  Persona -> Concat   [label="system + goal"];
+  Memory -> Concat    [label="memories"];
+  Timeline -> Concat  [label="timeline"];
+  Reflect -> Concat   [label="reflection"];
+  Situation -> Concat [class="primary"];
+  Self -> Concat      [class="primary"];
+  BySit -> Concat     [class="primary"];
+
+  Concat -> LLM [label="prompt", class="primary"];
+  LLM -> Action [label="response", class="positive"];
+}

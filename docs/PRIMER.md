@@ -100,10 +100,12 @@ These are implemented as separate components.
 
 ---
 
-## 8. Folder Map for Exploration
+## 8. Upstream Concordia Reference (`google-deepmind/concordia`)
 
-*   `concordia/typing/`: The "Interfaces" (ActionSpec, Entity, Component).
-*   `concordia/agents/`: The "Base Classes" for Agents.
-*   `concordia/components/agent/`: Concrete building blocks (Memory, Observation).
-*   `concordia/environment/engines/`: The "Loop" logic (Sequential, Simultaneous).
-*   `concordia/prefabs/`: The "Factory" patterns to build complex Agents/GMs.
+For the reference Python implementation in [`google-deepmind/concordia`](https://github.com/google-deepmind/concordia) (or a local checkout at `../github/concordia`):
+
+*   `concordia/typing/`: The core protocols (`ActionSpec`, `Entity`, `Component`).
+*   `concordia/agents/`: The `EntityAgent` and `EntityAgentWithLogging` implementations.
+*   `concordia/components/agent/`: Concrete building blocks (`AssociativeMemory`, `LastNObservations`, `QuestionOfRecentMemories`, `pubsub`).
+*   `concordia/environment/engines/`: The orchestration loops (`Sequential`, `Simultaneous`, `Asynchronous`) and `StepController`.
+*   `concordia/prefabs/`: Prebuilt `Entity` (`basic`, `rational`, `basic_with_async_deliberation`) and `GameMaster` (`generic`, `interrupt_driven`) templates.

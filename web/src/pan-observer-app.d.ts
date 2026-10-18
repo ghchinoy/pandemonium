@@ -12,7 +12,13 @@ export declare class PanObserverApp extends LitElement {
     private premise;
     private autoscroll;
     private completed;
+    private paused;
+    private scenarios;
+    private selectedScenario;
     constructor();
+    private fetchInitialState;
+    private sendControl;
+    private launchScenario;
     private connect;
     render(): import("lit-html").TemplateResult<1>;
 }

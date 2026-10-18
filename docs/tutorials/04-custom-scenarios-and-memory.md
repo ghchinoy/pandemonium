@@ -94,16 +94,28 @@ cat /tmp/pandemonium_dev_diary.md
 
 ---
 
-## Step 4: Verify Memory Reload Across Restarts
+## Step 4: Verify Simulation Checkpointing & Resume (`-checkpoint` / `-resume`)
 
-Re-run the exact same command without deleting `/tmp/pandemonium_clara_memory.jsonl`:
+Pandemonium supports snapshotting simulation state (step progress, turn-rotation index, `TimelineMemory`, and `MemoryStore`) to JSON after each step and resuming from any checkpoint:
 
 ```bash
+# 1. Run and save a checkpoint after each step
 go run ./cmd/pandemonium \
   -scenario /tmp/library_scenario.yaml \
-  -log /tmp/pandemonium_library_run2.jsonl \
+  -checkpoint /tmp/library_checkpoint.json \
+  -log /tmp/pandemonium_library_cp.jsonl \
+  -web ../web/dist
+
+# 2. Inspect the saved checkpoint JSON
+jq '{completed_steps, last_actor, last_rotation_index}' /tmp/library_checkpoint.json
+
+# 3. Resume from the checkpoint
+go run ./cmd/pandemonium \
+  -scenario /tmp/library_scenario.yaml \
+  -resume /tmp/library_checkpoint.json \
   -web ../web/dist
 ```
 
 **What to Verify**:
-- `vector.NewFileStore` loads all existing JSONL entries from Run 1 into Clara's in-memory `MemoryStore` at startup without error, allowing Clara to recall memories accumulated in previous runs.
+- `/tmp/library_checkpoint.json` contains `completed_steps`, `last_actor`, `last_rotation_index`, and the `entities` map with each entity's `timeline` and `memories`.
+- When resumed with `-resume`, `Sequential.Run` skips Step 0 initialization and continues from `completed_steps`.

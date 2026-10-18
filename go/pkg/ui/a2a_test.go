@@ -18,6 +18,7 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/ghchinoy/pandemonium/pkg/engine"
 	"github.com/ghchinoy/pandemonium/pkg/entity"
 	"github.com/ghchinoy/pandemonium/pkg/types"
 	"github.com/ghchinoy/pandemonium/pkg/ui"
@@ -152,6 +153,58 @@ func TestA2ACLIIntegration(t *testing.T) {
 
 	// Ensure a2aclient package reference remains exercised if needed by callers
 	_ = a2aclient.WithJSONRPCTransport
+}
+
+func TestServerControlAndScenariosAPI(t *testing.T) {
+	bus := types.NewEventBus()
+	defer bus.Close()
+
+	ctrl := engine.NewStepController(true) // start paused
+	srv := ui.NewServer(bus.Subscribe(), "")
+	srv.Controller = ctrl
+
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	// 1. Check initial paused status
+	statusResp, err := http.Get(ts.URL + "/api/status")
+	if err != nil {
+		t.Fatalf("http.Get(%q) returned unexpected error: %v", ts.URL+"/api/status", err)
+	}
+	_ = statusResp.Body.Close()
+	if statusResp.StatusCode != http.StatusOK {
+		t.Errorf("GET /api/status status = %d, want %d", statusResp.StatusCode, http.StatusOK)
+	}
+
+	// 2. Test play control action
+	playResp, err := http.Post(ts.URL+"/api/control", "application/json", strings.NewReader(`{"action":"play"}`))
+	if err != nil {
+		t.Fatalf("http.Post(%q, play) returned unexpected error: %v", ts.URL+"/api/control", err)
+	}
+	_ = playResp.Body.Close()
+	if !ctrl.IsRunning() {
+		t.Errorf("ctrl.IsRunning() after POST /api/control play = false, want true")
+	}
+
+	// 3. Test pause control action
+	pauseResp, err := http.Post(ts.URL+"/api/control", "application/json", strings.NewReader(`{"action":"pause"}`))
+	if err != nil {
+		t.Fatalf("http.Post(%q, pause) returned unexpected error: %v", ts.URL+"/api/control", err)
+	}
+	_ = pauseResp.Body.Close()
+	if !ctrl.IsPaused() {
+		t.Errorf("ctrl.IsPaused() after POST /api/control pause = false, want true")
+	}
+
+	// 4. Test scenarios listing
+	scenResp, err := http.Get(ts.URL + "/api/scenarios")
+	if err != nil {
+		t.Fatalf("http.Get(%q) returned unexpected error: %v", ts.URL+"/api/scenarios", err)
+	}
+	_ = scenResp.Body.Close()
+	if scenResp.StatusCode != http.StatusOK {
+		t.Errorf("GET /api/scenarios status = %d, want %d", scenResp.StatusCode, http.StatusOK)
+	}
 }
 
 func resolveA2ACLI(t *testing.T) string {

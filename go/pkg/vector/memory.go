@@ -34,6 +34,20 @@ func (s *MemoryStore) Add(_ context.Context, items ...Item) error {
 	return nil
 }
 
+// Items returns a copy of all items stored in memory.
+func (s *MemoryStore) Items() []Item {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return slices.Clone(s.items)
+}
+
+// SetItems replaces the stored items in memory.
+func (s *MemoryStore) SetItems(items []Item) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.items = slices.Clone(items)
+}
+
 // Search performs a high-performance cosine similarity search against the stored items using Gonum.
 func (s *MemoryStore) Search(_ context.Context, query []float64, k int) ([]Item, error) {
 	s.mu.RLock()

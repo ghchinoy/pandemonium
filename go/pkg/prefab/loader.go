@@ -63,7 +63,7 @@ func LoadScenario(ctx context.Context, path string, model llm.Model, embedder ve
 			if err != nil {
 				return nil, fmt.Errorf("initializing store for agent %q: %w", ac.Name, err)
 			}
-			agent = NewThreeKeyQuestionsAgent(ctx, ac.Name, ac.Persona, model, embedder, store)
+			agent = NewThreeKeyQuestionsAgentWithGoal(ctx, ac.Name, ac.Persona, ac.Goal, model, embedder, store)
 
 			// Seed Formative Memories if present
 			for _, m := range ac.FormativeMemories {

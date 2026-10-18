@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -66,6 +67,23 @@ func (t *TimelineMemory) PostObserve(_ context.Context) (string, error) {
 
 // Update is a no-op for TimelineMemory.
 func (t *TimelineMemory) Update(_ context.Context) error { return nil }
+
+// Events returns a copy of the current timeline buffer.
+func (t *TimelineMemory) Events() []string {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return slices.Clone(t.events)
+}
+
+// SetEvents replaces the timeline buffer contents.
+func (t *TimelineMemory) SetEvents(events []string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if len(events) > t.Capacity && t.Capacity > 0 {
+		events = events[len(events)-t.Capacity:]
+	}
+	t.events = slices.Clone(events)
+}
 
 func (t *TimelineMemory) addEvent(text string) {
 	t.mu.Lock()

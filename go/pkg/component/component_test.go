@@ -48,16 +48,27 @@ func TestDynamicContextComponent_PreAct(t *testing.T) {
 	errBoom := errors.New("llm unavailable")
 
 	tests := []struct {
-		name     string
-		response string
-		err      error
-		want     string
-		wantErr  error
+		name          string
+		sources       []component.ContextComponent
+		response      string
+		err           error
+		want          string
+		wantPromptHas string
+		wantErr       error
 	}{
 		{
 			name:     "trims_whitespace",
 			response: "  Calm and observant. \n",
 			want:     "Calm and observant.",
+		},
+		{
+			name: "includes_context_sources",
+			sources: []component.ContextComponent{
+				&component.Constant{CompName: "Goal", Value: "Find the brass key"},
+			},
+			response:      "Focused on the brass key.",
+			want:          "Focused on the brass key.",
+			wantPromptHas: "[Goal]\nFind the brass key",
 		},
 		{
 			name:    "propagates_error",
@@ -68,10 +79,12 @@ func TestDynamicContextComponent_PreAct(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			stub := &stubModel{response: tc.response, err: tc.err}
 			d := &component.DynamicContextComponent{
-				CompName: "SelfPerception",
-				Prompt:   "Who are you?",
-				Model:    &stubModel{response: tc.response, err: tc.err},
+				CompName:       "SelfPerception",
+				Prompt:         "Who are you?",
+				Model:          stub,
+				ContextSources: tc.sources,
 			}
 			spec := types.ActionSpec{CallToAction: "Act"}
 			got, err := d.PreAct(ctx, spec)
@@ -81,19 +94,25 @@ func TestDynamicContextComponent_PreAct(t *testing.T) {
 			if got != tc.want {
 				t.Errorf("d.PreAct(ctx, %+v) = %q, want %q", spec, got, tc.want)
 			}
+			if tc.wantPromptHas != "" && stub.lastPrompt == "" {
+				t.Errorf("d.PreAct(ctx, %+v) did not pass prompt to model", spec)
+			}
 		})
 	}
 }
 
 type stubModel struct {
-	response string
-	err      error
+	response   string
+	err        error
+	lastPrompt string
 }
 
-func (s *stubModel) Generate(_ context.Context, _ string) (string, error) {
+func (s *stubModel) Generate(_ context.Context, prompt string) (string, error) {
+	s.lastPrompt = prompt
 	return s.response, s.err
 }
 
-func (s *stubModel) GenerateWithSystem(_ context.Context, _, _ string) (string, error) {
+func (s *stubModel) GenerateWithSystem(_ context.Context, _, prompt string) (string, error) {
+	s.lastPrompt = prompt
 	return s.response, s.err
 }

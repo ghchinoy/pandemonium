@@ -14,19 +14,62 @@ import (
 
 // Sequential implements a turn-based simulation loop.
 type Sequential struct {
-	Bus       *types.EventBus
-	LastActor string
-	MinSteps  int
-	ContextID string
-	Strategy  types.TurnTakingStrategy
+	Bus            *types.EventBus
+	LastActor      string
+	MinSteps       int
+	StartStep      int
+	ContextID      string
+	Strategy       types.TurnTakingStrategy
+	CheckpointPath string
+	GMs            []types.Entity
+	Controller     *StepController
 
 	lastRotationIndex int
 }
 
+// Snapshot creates a Checkpoint of the current engine and entity states.
+func (s *Sequential) Snapshot(completedSteps int, gm types.Entity, players []types.Entity) Checkpoint {
+	entities := make(map[string]EntityState, len(players)+1)
+	if gm != nil {
+		entities[gm.Name()] = CaptureEntityState(gm)
+	}
+	for _, p := range players {
+		entities[p.Name()] = CaptureEntityState(p)
+	}
+	return Checkpoint{
+		CompletedSteps:    completedSteps,
+		LastActor:         s.LastActor,
+		LastRotationIndex: s.lastRotationIndex,
+		ContextID:         s.ContextID,
+		Entities:          entities,
+	}
+}
+
+// Restore applies a saved Checkpoint to the engine and entities.
+func (s *Sequential) Restore(cp Checkpoint, gm types.Entity, players []types.Entity) {
+	s.StartStep = cp.CompletedSteps
+	s.LastActor = cp.LastActor
+	s.lastRotationIndex = cp.LastRotationIndex
+	s.ContextID = cp.ContextID
+
+	if gm != nil {
+		if st, ok := cp.Entities[gm.Name()]; ok {
+			RestoreEntityState(gm, st)
+		}
+	}
+	for _, p := range players {
+		if st, ok := cp.Entities[p.Name()]; ok {
+			RestoreEntityState(p, st)
+		}
+	}
+}
+
 // Run executes the simulation loop.
 func (s *Sequential) Run(ctx context.Context, gm types.Entity, players []types.Entity, premise string, maxSteps int) error {
-	// Generate a unique session ID for A2A correlation
-	s.ContextID = a2a.NewContextID()
+	// Generate a unique session ID for A2A correlation if not already restored from a checkpoint
+	if s.ContextID == "" {
+		s.ContextID = a2a.NewContextID()
+	}
 
 	fmt.Printf("\n--- Simulation Start ---\n")
 	s.emit(types.Event{Type: types.EventSimStart, Message: "Simulation initializing...", Data: premise})
@@ -40,26 +83,31 @@ func (s *Sequential) Run(ctx context.Context, gm types.Entity, players []types.E
 	}
 
 	// 2. Scenario Setup Phase (Step 0)
-	// Mirroring Concordia's INITIALIZER: Seed agent memories with the premise.
-	fmt.Printf("[World] Setting the Scene: %s\n", premise)
-	s.emit(types.Event{Type: types.EventStepStart, Message: "Setup: Setting the Scene", Data: 0})
+	// Mirroring Concordia's INITIALIZER: Seed agent memories with the premise when starting at step 0.
+	if s.StartStep == 0 {
+		fmt.Printf("[World] Setting the Scene: %s\n", premise)
+		s.emit(types.Event{Type: types.EventStepStart, Message: "Setup: Setting the Scene", Data: 0})
 
-	if premise != "" {
-		if err := gm.Observe(ctx, fmt.Sprintf("[Premise] %s", premise)); err != nil {
-			return fmt.Errorf("setup observation for GM: %w", err)
-		}
-		// Synchronously seed all players with the world context
-		for _, p := range players {
-			setupMsg := fmt.Sprintf("System: Scenario Initialization. Premise: %s", premise)
-			if err := p.Observe(ctx, setupMsg); err != nil {
-				return fmt.Errorf("setup observation for %q: %w", p.Name(), err)
+		if premise != "" {
+			if err := gm.Observe(ctx, fmt.Sprintf("[Premise] %s", premise)); err != nil {
+				return fmt.Errorf("setup observation for GM: %w", err)
 			}
-			s.emit(types.Event{Type: types.EventObservation, Actor: p.Name(), Message: "Received world context."})
+			// Synchronously seed all players with the world context
+			for _, p := range players {
+				setupMsg := fmt.Sprintf("System: Scenario Initialization. Premise: %s", premise)
+				if err := p.Observe(ctx, setupMsg); err != nil {
+					return fmt.Errorf("setup observation for %q: %w", p.Name(), err)
+				}
+				s.emit(types.Event{Type: types.EventObservation, Actor: p.Name(), Message: "Received world context."})
+			}
 		}
 	}
 
 	// 3. Main Simulation Loop
-	for step := 0; step < maxSteps; step++ {
+	for step := s.StartStep; step < maxSteps; step++ {
+		if s.Controller != nil && !s.Controller.WaitForStepPermission(ctx) {
+			break
+		}
 		fmt.Printf("\n--- Step %d ---\n", step+1)
 		s.emit(types.Event{Type: types.EventStepStart, Message: fmt.Sprintf("Step %d", step+1), Data: step + 1})
 
@@ -88,6 +136,18 @@ func (s *Sequential) Run(ctx context.Context, gm types.Entity, players []types.E
 				fmt.Println("[World] Termination signal received.")
 				s.emit(types.Event{Type: types.EventResolution, Message: "The Game Master has concluded the simulation."})
 				break
+			}
+		}
+
+		// 2b. Switch Game Master if multiple rule sets are configured
+		if len(s.GMs) > 1 {
+			nextGM, err := SelectNextGM(ctx, gm, s.GMs)
+			if err != nil {
+				return err
+			}
+			if nextGM.Name() != gm.Name() {
+				s.emit(types.Event{Type: types.EventThought, Actor: "Engine", Message: fmt.Sprintf("Switched Game Master from %s to %s", gm.Name(), nextGM.Name())})
+				gm = nextGM
 			}
 		}
 
@@ -124,6 +184,23 @@ func (s *Sequential) Run(ctx context.Context, gm types.Entity, players []types.E
 			}
 			nextActorName = strings.TrimSpace(nextActorName)
 			s.emit(types.Event{Type: types.EventThought, Actor: "GM", Message: fmt.Sprintf("Strategy [Sequential/GM]: GM chose %s (last was %s)", nextActorName, s.LastActor)})
+		}
+
+		if IsSkipStep(nextActorName) {
+			s.emit(types.Event{Type: types.EventThought, Actor: "GM", Message: "Skipping player turn for environmental update."})
+			resolveSpec := types.ActionSpec{
+				CallToAction: "System: You are the Game Master. This step has no player action. Describe any background environmental changes in the world.",
+				OutputType:   types.OutputResolve,
+			}
+			resolution, err := gm.Act(ctx, resolveSpec)
+			if err != nil {
+				return fmt.Errorf("resolving skipped step: %w", err)
+			}
+			s.emit(types.Event{Type: types.EventResolution, Message: resolution})
+			if err := gm.Observe(ctx, fmt.Sprintf("[Event] %s", resolution)); err != nil {
+				return fmt.Errorf("updating GM world state: %w", err)
+			}
+			continue
 		}
 
 		s.LastActor = nextActorName
@@ -191,6 +268,14 @@ func (s *Sequential) Run(ctx context.Context, gm types.Entity, players []types.E
 		// 7. Inform GM of resolution (to update its world state)
 		if err := gm.Observe(ctx, fmt.Sprintf("[Event] %s", resolution)); err != nil {
 			return fmt.Errorf("updating GM world state: %w", err)
+		}
+
+		// 8. Save checkpoint if configured
+		if s.CheckpointPath != "" {
+			cp := s.Snapshot(step+1, gm, players)
+			if err := SaveCheckpoint(s.CheckpointPath, cp); err != nil {
+				return fmt.Errorf("saving checkpoint at step %d: %w", step+1, err)
+			}
 		}
 	}
 

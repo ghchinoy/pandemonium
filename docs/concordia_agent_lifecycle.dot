@@ -1,0 +1,34 @@
+// Concordia multi-phase agent Act() lifecycle.
+digraph ConcordiaAgentLifecycle {
+  label = "Concordia · agent Act() phase lifecycle";
+  rankdir = TB;
+  ranksep = 0.5;
+  nodesep = 0.4;
+
+  Start  [label="Act(ActionSpec)", class="terminal code"];
+  PreAct [label="1. PRE_ACT Phase\nPreAct() in parallel", class="emphasis"];
+
+  subgraph cluster_Components {
+    label = "Context Components";
+    class = "accent";
+    Memory      [label="Memory", class="store"];
+    Observation [label="Timeline"];
+    Goal        [label="Perception"];
+  }
+
+  ActComp [label="2. ActingComponent\nGetActionAttempt() · LLM", class="primary"];
+  PostAct [label="3. POST_ACT Phase\nPostAct() in parallel", class="emphasis"];
+  Update  [label="4. UPDATE Phase\nUpdate() in parallel"];
+  End     [label="Return action", class="positive terminal"];
+
+  Start -> PreAct [class="primary"];
+  PreAct -> {Memory Observation Goal};
+  Memory -> ActComp      [class="primary"];
+  Observation -> ActComp [label="context map", class="primary"];
+  Goal -> ActComp        [class="primary"];
+  ActComp -> PostAct     [label="action attempt", class="primary"];
+  PostAct -> Goal        [label="record action", class="weak", constraint=false];
+  PostAct -> Update      [class="primary"];
+  Update -> Goal         [label="refresh state", class="weak", constraint=false];
+  Update -> End          [class="positive"];
+}

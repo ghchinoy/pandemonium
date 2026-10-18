@@ -39,9 +39,22 @@ const (
 	StrategyRandom TurnTakingStrategy = "random"
 )
 
+// EngineType defines the simulation orchestration model.
+type EngineType string
+
+const (
+	// EngineSequential runs one actor per turn.
+	EngineSequential EngineType = "sequential"
+	// EngineSimultaneous runs all active players concurrently within each step.
+	EngineSimultaneous EngineType = "simultaneous"
+	// EngineAsynchronous runs each player in an independent observe-act goroutine loop.
+	EngineAsynchronous EngineType = "asynchronous"
+)
+
 // EngineSettings configures the simulation loop.
 type EngineSettings struct {
-	MinSteps int                `yaml:"min_steps"`
-	MaxSteps int                `yaml:"max_steps"`
-	Strategy TurnTakingStrategy `yaml:"strategy,omitempty"`
+	Engine   EngineType         `yaml:"engine,omitempty" json:"engine,omitempty"`
+	MinSteps int                `yaml:"min_steps" json:"min_steps"`
+	MaxSteps int                `yaml:"max_steps" json:"max_steps"`
+	Strategy TurnTakingStrategy `yaml:"strategy,omitempty" json:"strategy,omitempty"`
 }

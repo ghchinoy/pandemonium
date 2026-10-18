@@ -47,13 +47,16 @@ While the simulation is running in your terminal, verify the following in the Bu
 
 ---
 
-## Step 4: Verify the Web X-Ray Dashboard
+## Step 4: Verify the Web X-Ray & Command Center Dashboard
 
 While the TUI is active (before pressing `q`), open **`http://localhost:8080`** in your browser:
 
-1. **Agent Cards**: Verify cards appear for `Alice`, `Bob`, and `Charlie`.
-2. **Simulation Log**: Verify real-time WebSocket events stream into the central feed.
-3. **Trace Inspector**: Click an agent or thought event to inspect the underlying component contexts gathered during `PRE_ACT` (`Instructions`, `Memory`, `Timeline`, `SelfPerception`, `SituationPerception`).
+1. **Command Center Controls**:
+   - Use **⏸ Pause**, **⏭ Step**, **▶ Play**, and **⏹ Stop** in the top bar (or launch with `-start-paused`) to pause at step boundaries and single-step through the simulation.
+   - Use the **Scenario Selector** dropdown to launch built-in or stored scenarios directly from the browser (`POST /api/sessions`).
+2. **Agent Cards**: Verify cards appear for `Alice`, `Bob`, and `Charlie`.
+3. **Simulation Log**: Verify real-time WebSocket events stream into the central feed.
+4. **Trace Inspector**: Click an agent or thought event to inspect the underlying component contexts gathered during `PRE_ACT` (`Instructions`, `Goal`, `Memory`, `Timeline`, `Reflection`, `SituationPerception`, `SelfPerception`, `PersonBySituation`).
 
 ---
 
