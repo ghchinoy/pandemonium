@@ -41,7 +41,11 @@ func (c *ConcatActComponent) GetActionAttempt(ctx context.Context, contexts map[
 			fmt.Fprintf(&user, "\n## %s\n%s\n", name, val)
 		}
 	}
-	fmt.Fprintf(&user, "\nTask: %s\nResponse:", spec.CallToAction)
+	fmt.Fprintf(&user, "\nTask: %s", spec.CallToAction)
+	if len(spec.Options) > 0 {
+		fmt.Fprintf(&user, "\nAllowed options (reply with one): %s", strings.Join(spec.Options, ", "))
+	}
+	user.WriteString("\nResponse:")
 
 	return c.Model.GenerateWithSystem(ctx, system, user.String())
 }

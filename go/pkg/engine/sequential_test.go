@@ -179,17 +179,26 @@ func TestSequential_SkipStepAndGMSwitcher(t *testing.T) {
 		t.Errorf("alice.TotalActs() after GM switch to CombatGM = %d, want 1", alice.TotalActs())
 	}
 
-	// Test OutputSkipThisStep
+	// Test OutputSkipThisStep and verify checkpoint is written on skipped steps (Concordia PR #411)
+	skipCPPath := filepath.Join(t.TempDir(), "skip_cp.json")
 	skipSeq := &engine.Sequential{
-		Bus:      bus,
-		MinSteps: 5,
-		Strategy: types.StrategySequential,
+		Bus:            bus,
+		MinSteps:       5,
+		Strategy:       types.StrategySequential,
+		CheckpointPath: skipCPPath,
 	}
-	if err := skipSeq.Run(ctx, gm1, []types.Entity{alice}, "Premise", 1); err != nil {
+	if err := skipSeq.Run(ctx, gm1, []types.Entity{alice}, "Premise", 2); err != nil {
 		t.Fatalf("skipSeq.Run() with OutputSkipThisStep returned unexpected error: %v", err)
 	}
 	if alice.TotalActs() != 1 {
 		t.Errorf("alice.TotalActs() after skipped step = %d, want 1 (unchanged)", alice.TotalActs())
+	}
+	skipCP, err := engine.LoadCheckpoint(skipCPPath)
+	if err != nil {
+		t.Fatalf("LoadCheckpoint(%q) after skipped steps returned unexpected error: %v", skipCPPath, err)
+	}
+	if skipCP.CompletedSteps != 2 {
+		t.Errorf("LoadCheckpoint(%q).CompletedSteps after 2 skipped steps = %d, want 2", skipCPPath, skipCP.CompletedSteps)
 	}
 }
 
@@ -251,6 +260,55 @@ func TestAsynchronous_Run(t *testing.T) {
 	if diff := cmp.Diff(wantCounts, gotCounts); diff != "" {
 		t.Errorf("asyncEng.Run() player act counts diff (-want +got):\n%s", diff)
 	}
+}
+
+func TestRulebookGM_SequentialRun(t *testing.T) {
+	ctx := t.Context()
+	rules := &counterRulebook{targetSteps: 2}
+	gm := engine.NewRulebookGM("Referee", rules)
+
+	alice := &scriptedPlayer{name: "Alice"}
+	bob := &scriptedPlayer{name: "Bob"}
+
+	seq := &engine.Sequential{
+		MinSteps: 1,
+		Strategy: types.StrategySequential,
+	}
+	if err := seq.Run(ctx, gm, []types.Entity{alice, bob}, "Race to two points.", 5); err != nil {
+		t.Fatalf("seq.Run() with RulebookGM returned unexpected error: %v", err)
+	}
+
+	if rules.resolutions != 2 {
+		t.Errorf("rules.resolutions = %d, want 2 (stopped at targetSteps)", rules.resolutions)
+	}
+	if len(gm.History()) != 3 { // 1 premise + 2 resolved events
+		t.Errorf("len(gm.History()) = %d, want 3", len(gm.History()))
+	}
+}
+
+type counterRulebook struct {
+	turn        int
+	resolutions int
+	targetSteps int
+}
+
+func (c *counterRulebook) NextActing(_ context.Context, options []string) (string, error) {
+	actor := options[c.turn%len(options)]
+	c.turn++
+	return actor, nil
+}
+
+func (c *counterRulebook) MakeObservation(_ context.Context, _ string) (string, error) {
+	return "Scoreboard shows current progress.", nil
+}
+
+func (c *counterRulebook) Resolve(_ context.Context, _ string) (string, error) {
+	c.resolutions++
+	return "Point scored.", nil
+}
+
+func (c *counterRulebook) ShouldTerminate(_ context.Context) (bool, error) {
+	return c.resolutions >= c.targetSteps, nil
 }
 
 type stubLLM struct{}

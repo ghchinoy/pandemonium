@@ -1,6 +1,6 @@
 # Adapting Concordia to Go: Architectural Guide
 
-This document outlines how to adapt the Python-based Concordia architecture into a robust, high-performance Go library (let's call it **Pandemonium**).
+This document outlines how to adapt the Python-based [Concordia](https://github.com/google-deepmind/concordia) architecture into a robust, high-performance Go library (**Pandemonium**).
 
 ---
 
@@ -96,18 +96,18 @@ To encourage reuse and clear separation of concerns, follow a package-based stru
 go/
 ├── cmd/
 │   ├── pandemonium/    # Orchestrator CLI binary
-│   └── agent-node/     # Standalone A2A agent microservice
+│   └── agent-node/     # Standalone A2A v2 agent microservice
 └── pkg/
     ├── types/          # Core interfaces, EventBus, and Scenario config
-    ├── engine/         # Simulation loops (Sequential)
+    ├── engine/         # Sequential, Simultaneous, Asynchronous, StepController, Checkpoint, SimulationManager, RulebookGM
     ├── entity/         # BaseEntity and remote A2AProxyEntity
-    ├── component/      # Reusable building blocks (Constant, Dynamic)
-    │   └── memory/     # AssociativeMemory and TimelineMemory
-    ├── prefab/         # Pre-wired configurations (ThreeKeyQuestions, Loader)
-    ├── llm/            # Gemini / Vertex AI model & embedder clients
+    ├── component/      # Constant, Dynamic, and HumanActComponent
+    │   └── memory/     # AssociativeMemory, TimelineMemory, and ReflectionComponent
+    ├── prefab/         # Pre-wired configurations (ThreeKeyQuestions, Loader, embedded scenarios)
+    ├── llm/            # Gemini / Vertex AI model, embedder, and FallbackModel
     ├── store/          # Operational state stores (LocalStore, FirestoreStore)
-    ├── vector/         # Vector store interfaces and implementations
-    └── ui/             # Bubble Tea TUI, WebSocket server, and A2A server
+    ├── vector/         # Vector store interfaces and implementations (MemoryStore, FileStore, MarkdownStore)
+    └── ui/             # Bubble Tea TUI, Web Command Center Server, and A2A v2 Server
 ```
 
 ---
@@ -116,30 +116,61 @@ go/
 
 In Go, "Prefabs" are best implemented as **Constructor Functions** or **Functional Options**.
 
-### The Constructor Pattern
+### The Constructor Pattern (`NewThreeKeyQuestionsAgentWithGoal`)
 ```go
-// NewThreeKeyQuestionsAgent builds the standard reasoning agent.
-func NewThreeKeyQuestionsAgent(_ context.Context, name string, persona string, model llm.Model, embedder vector.Embedder, store vector.Store) types.Entity {
+// NewThreeKeyQuestionsAgentWithGoal builds a reasoning agent with an optional overarching goal
+// and all three Concordia key questions (SituationPerception, SelfPerception, PersonBySituation).
+func NewThreeKeyQuestionsAgentWithGoal(_ context.Context, name, persona, goal string, model llm.Model, embedder vector.Embedder, store vector.Store) types.Entity {
 	mem := &memory.AssociativeMemory{Store: store, Embedder: embedder, K: 5}
 	timeline := memory.NewTimelineMemory("Timeline", 10)
+	reflection := &memory.ReflectionComponent{
+		CompName: "Reflection",
+		Timeline: timeline,
+		Store:    store,
+		Embedder: embedder,
+		Model:    model,
+		Interval: 3,
+	}
+
+	perceptionSources := []component.ContextComponent{timeline}
+	var goalComp *component.Constant
+	if goal != "" {
+		goalComp = &component.Constant{CompName: "Goal", Value: goal}
+		perceptionSources = append([]component.ContextComponent{goalComp}, perceptionSources...)
+	}
 
 	components := map[string]component.ContextComponent{
 		"Instructions": &component.Constant{CompName: "Instructions", Value: persona},
 		"Memory":       mem,
 		"Timeline":     timeline,
-		"SelfPerception": &component.DynamicContextComponent{
-			CompName: "SelfPerception",
-			Prompt:   fmt.Sprintf("Based on your persona and recent memories, who are you? Persona: %s", persona),
-			Model:    model,
-		},
+		"Reflection":   reflection,
 		"SituationPerception": &component.DynamicContextComponent{
-			CompName: "SituationPerception",
-			Prompt:   "Based on recent observations, what kind of situation are you in right now? Describe it in one sentence.",
-			Model:    model,
+			CompName:       "SituationPerception",
+			Prompt:         fmt.Sprintf("Question: Based on recent observations, what kind of situation is %s in right now?\nAnswer in one sentence.", name),
+			Model:          model,
+			ContextSources: perceptionSources,
+		},
+		"SelfPerception": &component.DynamicContextComponent{
+			CompName:       "SelfPerception",
+			Prompt:         fmt.Sprintf("Question: Based on %s's persona and recent history, what kind of person is %s? Persona: %s\nAnswer in one sentence.", name, name, persona),
+			Model:          model,
+			ContextSources: perceptionSources,
+		},
+		"PersonBySituation": &component.DynamicContextComponent{
+			CompName:       "PersonBySituation",
+			Prompt:         fmt.Sprintf("Question: What would a person like %s (%s) do in a situation like this?\nAnswer in one sentence.", name, persona),
+			Model:          model,
+			ContextSources: perceptionSources,
 		},
 	}
 
-	order := []string{"Instructions", "Memory", "Timeline", "SelfPerception", "SituationPerception"}
+	order := []string{"Instructions"}
+	if goalComp != nil {
+		components["Goal"] = goalComp
+		order = append(order, "Goal")
+	}
+	order = append(order, "Memory", "Timeline", "Reflection", "SituationPerception", "SelfPerception", "PersonBySituation")
+
 	return &entity.BaseEntity{
 		EntityName:   name,
 		Components:   components,
@@ -276,28 +307,36 @@ Pandemonium mirrors Concordia's **`INITIALIZER`** role through a formal **Setup 
 
 ---
 
-## 11. Persistence Strategy
+## 11. Persistence Strategy & Checkpointing
 
-Pandemonium utilizes a **Dual-Persistence** model to balance cognitive realism with operational reliability.
+Pandemonium utilizes a **Dual-Persistence** model plus step-boundary **Checkpointing** to balance cognitive realism with operational reliability.
 
 ### Associative Memory (Vector)
 - **Purpose**: Agent cognition and semantic recall.
 - **Implementation**: `pkg/vector/Store` interface.
-- **Providers**: In-memory (Dev), Vertex AI Vector Search (Prod).
+- **Providers**: `MemoryStore` (Gonum normalized cosine similarity), `FileStore` (JSONL-backed), `MarkdownStore` (human-readable audit log), and Vertex AI Vector Search (Cloud).
 
-### Operational State (Document/SQL)
-- **Purpose**: Scenario templates, session metadata, event logs, and user data.
+### Operational State (Document/JSONL)
+- **Purpose**: Scenario templates, session metadata, and event logs.
 - **Implementation**: `pkg/store/StateStore` interface.
-- **Providers**: Local JSONL/Files (Dev), Google Cloud Firestore (Prod).
+- **Providers**: `LocalStore` (local JSON/JSONL files) and `FirestoreStore` (Google Cloud Firestore).
+
+### Simulation Checkpointing (`pkg/engine/checkpoint.go`)
+- **Snapshot & Restore**: `Sequential.Snapshot` and `Restore` serialize and rehydrate `CompletedSteps`, `LastActor`, `LastRotationIndex`, `ContextID`, and every entity's `TimelineMemory` and `MemoryStore` vectors as typed JSON (`-checkpoint` / `-resume` CLI flags).
 
 ---
 
-## 12. Multi-Tenant Orchestration
+## 12. Interactive `StepController` & Multi-Tenant Orchestration
 
-Moving from a CLI tool to a Platform requires a **Simulation Manager**:
-- **Lifecycle**: Spawns and kills simulation goroutines.
-- **Isolation**: Ensures each session has its own `EventBus` and `MemoryStore`.
-- **Switchboard**: A central registry that allows UI clients to "attach" to specific session streams via a `/ws/:session_id` endpoint.
+Pandemonium ports Concordia v2.4's **`StepController`** (`pkg/engine/step_controller.go`) and pairs it with **`SimulationManager`** (`pkg/engine/manager.go`):
+
+- **`StepController`**: Provides thread-safe `Play()`, `Pause()`, `Step()`, `Stop()`, and `WaitForStepPermission(ctx)` synchronization across `Sequential`, `Simultaneous`, and `Asynchronous` engines. Passing `-start-paused` starts the simulation waiting before Step 1 so developers can single-step turns from the browser or REST API.
+- **`SimulationManager`**: Manages concurrent simulation sessions, scenario catalogs (`ListScenarios`), `StepController` handles, and `StateStore` event persistence.
+- **Command Center REST API (`pkg/ui/server.go`)**:
+  - `GET /api/status`: Returns `{running, paused, stopped}` state.
+  - `POST /api/control`: Executes `{"action": "play" | "pause" | "step" | "stop"}`.
+  - `GET /api/scenarios`: Lists built-in and stored YAML scenarios.
+  - `GET / POST /api/sessions`: Lists active sessions or launches a new scenario session.
 
 ---
 
@@ -313,15 +352,15 @@ The initial `MockEmbedder` (length-based) is being replaced with `gemini-embeddi
 
 ---
 
-## 14. Generative Memory: A Phased Approach
+## 14. Generative Memory & Async Deliberation
 
-Pandemonium iterates on Concordia's memory bank concepts through a multi-stage technical roadmap:
+Pandemonium iterates on Concordia's memory bank and `pubsub` deliberation concepts:
 
 | Stage | Name | Description | Concordia Alignment |
 | :--- | :--- | :--- | :--- |
-| **3.2** | **Grounding** | `gemini-embedding-001` + `gonum`. Enables real semantic retrieval. | **Core Match** |
+| **3.2** | **Grounding** | `gemini-embedding-001` + `gonum` normalized cosine similarity. | **Core Match** |
 | **3.3** | **Formative** | Support for `formative_memories` in Scenario YAML. Seeds the vector store at boot. | **Core Match** |
-| **3.4** | **Reflections** | A specialized component that periodically summarizes recent history into new high-level memories. | **Divergence** (Go-native) |
+| **3.4** | **Reflections & Belief Aging** | `memory.ReflectionComponent` periodically synthesizes `TimelineMemory` into `[Reflection]` vector memories. Supports `Async: true` background goroutine deliberation (skipping triggers while busy) and annotates returned beliefs with turn age (`[fresh]`, `[N turns old]`). | **Concordia v2.4 `pubsub` Match** |
 | **3.5** | **Cloud Scale** | Vertex AI Vector Search for multi-scenario, long-term agent persistence. | **Scale Match** |
 
 ---
@@ -370,9 +409,13 @@ Ported from Concordia v2.4's `Asynchronous` engine (`concordia/environment/engin
 
 ---
 
-## 17. Key Advantages of a Go Version
+## 17. Architectural Comparison: Python Concordia vs. Go Pandemonium
 
-1.  **Strict Typing**: Prevents common "stringly-typed" errors in complex component interactions.
-2.  **Performance**: Handling 100+ agents in a simultaneous engine will be significantly faster and use less memory than the Python equivalent.
-3.  **Deployment**: A single statically linked binary is much easier to deploy than a Python environment with complex C-dependencies for vector math.
-4.  **Observability**: Use Go's `context` for cancellation and tracing across the entire simulation chain.
+| Dimension | Python Concordia (`google-deepmind/concordia`) | Go Pandemonium (`github.com/ghchinoy/pandemonium`) |
+| :--- | :--- | :--- |
+| **Phase & Engine Concurrency** | Uses `ThreadPoolExecutor` and `threading.Thread` under the Python GIL; requires `_PhaseSafeMemoryProxy` and `_SnapshottedComponentProxy` wrappers (`components/agent/pubsub.py`) to avoid phase-transition race exceptions. | Uses lightweight goroutines (`sync.WaitGroup`, `atomic.Bool`, `sync.Cond`) with true multi-core parallelism for both intra-agent `PRE_ACT`/`POST_ACT`/`UPDATE` phases and inter-agent `Simultaneous`/`Asynchronous` engines. |
+| **Per-Turn Context Isolation** | `ActionSpecIgnored` caches `_pre_act_value` on the component instance and clears it only during `UPDATE`; a failed `PRE_ACT` skips `UPDATE` and can leak stale values into a retry. | `BaseEntity.runPhase` allocates a fresh, call-scoped `map[string]string` per `Act()` call and passes it directly to `GetActionAttempt`, eliminating cross-turn stale cache leaks by construction. |
+| **Checkpoint Type Safety** | `get_state()` / `set_state()` serialize untyped `Mapping[str, Any]` dictionaries across components. | `engine.Checkpoint` and `engine.EntityState` serialize strongly-typed Go structs with compile-time type safety. |
+| **Cancellation & Deadlines** | Worker threads cannot be preempted without custom per-adapter timeout plumbing. | `context.Context` is threaded as the first parameter across every engine, entity, component, LLM client, vector store, and `StepController`. |
+| **Distributed Agents (A2A v2)** | Entities are in-process Python objects. | `Entity` is a 3-method interface (`Name`, `Act`, `Observe`) implemented identically by in-process `BaseEntity` and remote `A2AProxyEntity` over `a2a-go/v2` streaming JSON-RPC. |
+| **Single-Binary Deployment** | Requires Python runtime, C-extensions, and separate web/log servers. | Compiles to a single static binary with embedded YAML scenarios (`embed.FS`), Bubble Tea TUI, WebSocket Command Center, and A2A v2 JSON-RPC server. |

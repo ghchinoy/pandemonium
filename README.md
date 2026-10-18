@@ -1,19 +1,20 @@
 # Pandemonium: Generative Social Simulation in Go
 
-Pandemonium is a high-performance, concurrent Go implementation of the **Concordia** generative social simulation library. It allows researchers and developers to build "digital pocket universes" where LLM-powered agents interact in grounded environments.
+Pandemonium is a high-performance, concurrent Go implementation of Google DeepMind's [**Concordia**](https://github.com/google-deepmind/concordia) generative social simulation library. It allows researchers and developers to build "digital pocket universes" where LLM-powered agents interact in grounded environments.
 
 ---
 
 ## 🚀 Key Features
 
-- **Concurrent Agent Lifecycle**: Uses goroutines to parallelize cognitive "phases" (Memory retrieval, Goal checking, etc.), ensuring high performance as agent complexity grows.
-- **Entity-Component Architecture**: Pure composition-based design. Agents and Game Masters are "Entities" built from modular "Components."
-- **Scenario Templates**: Define world facts, premises, and agent personas in portable YAML files.
-- **Multi-Layered Observability**:
-    - **TUI**: Reactive terminal interface with real-time narrative logging and agent status view.
-    - **Web**: Decoupled Lit-based frontend for real-time simulation "X-Ray" via WebSockets.
-    - **JSONL**: Persistent event logging for post-simulation analysis.
-- **Grounding & Memory**: Built-in associative memory and immutable "World Facts" to prevent narrative drift.
+- **Pluggable Orchestration Engines**: Run turn-based narrative loops (`sequential`), concurrent multi-actor rounds (`simultaneous`), or independent per-entity goroutine loops (`asynchronous`).
+- **Concurrent Agent Lifecycle**: Uses goroutines to parallelize cognitive phases (`PRE_ACT`, `POST_ACT`, `UPDATE`), ensuring high performance as agent complexity grows.
+- **Entity-Component Architecture**: Pure composition-based design. Agents and Game Masters are `Entity` implementations built from modular `ContextComponent` and `ActingComponent` building blocks.
+- **Grounding, Memory & Reflection**: Combines Gonum-backed associative vector recall, rolling chronological `TimelineMemory`, periodic `ReflectionComponent` synthesis (sync or background async with belief-age tags), and goal-aware "Three Key Questions" perception.
+- **Distributed A2A v2 Orchestration**: Seamlessly mix local in-process entities and remote microservices over the [A2A v2](https://github.com/a2aproject/a2a-go) JSON-RPC streaming protocol, complete with cross-network thought-artifact tunneling.
+- **Multi-Layered Observability & Interactive Control**:
+    - **TUI**: Reactive Bubble Tea terminal interface with real-time narrative logging and agent status view.
+    - **Web Command Center**: Decoupled Lit frontend (`:8080`) with Play/Pause/Step/Stop `StepController` debugging, scenario launching, and live Trace Inspector via WebSockets & REST.
+    - **JSONL & Checkpoints**: Persistent JSONL event traces (`-log`) and JSON step-boundary checkpointing (`-checkpoint` / `-resume`).
 
 ![Pandemonium Architecture](docs/pandemonium_architecture.webp)
 
@@ -109,7 +110,7 @@ This project uses **bd (beads)** for issue tracking.
 
 ## Acknowledgements
 
-This work is an adaptation of Google DeepMind's Concordia
+This work is an adaptation of Google DeepMind's [Concordia](https://github.com/google-deepmind/concordia).
 
 <!-- disableFinding(SNIPPET_INVALID_LANGUAGE) -->
 ```bibtex

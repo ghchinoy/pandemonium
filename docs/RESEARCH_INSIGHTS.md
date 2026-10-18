@@ -1,6 +1,6 @@
 # Research Insights: Generative Social Simulation
 
-This document synthesizes key insights from the foundational research papers for Concordia:
+This document synthesizing key insights from the foundational research papers for [Concordia](https://github.com/google-deepmind/concordia):
 1. **"Generative agent-based modeling with actions grounded in physical, social, or digital space using Concordia"** (Vezhnevets et al., 2023)
 2. **"Multi-Actor Generative Artificial Intelligence as a Game Engine"** (Vezhnevets et al., 2025)
 

@@ -101,6 +101,49 @@ func TestDynamicContextComponent_PreAct(t *testing.T) {
 	}
 }
 
+func TestHumanActComponent_SubmitAndClose(t *testing.T) {
+	ctx := t.Context()
+	h := component.NewHumanActComponent("HumanSeat")
+
+	type result struct {
+		ans string
+		err error
+	}
+	done := make(chan result, 1)
+	spec := types.ActionSpec{CallToAction: "What do you say?", OutputType: types.OutputFree}
+
+	go func() {
+		ans, err := h.GetActionAttempt(ctx, map[string]string{"Timeline": "1. Hello"}, spec)
+		done <- result{ans: ans, err: err}
+	}()
+
+	// Wait until Pending() is visible and submit answer
+	for {
+		if req, ok := h.Pending(); ok {
+			if req.Spec.CallToAction != spec.CallToAction {
+				t.Errorf("h.Pending().Spec.CallToAction = %q, want %q", req.Spec.CallToAction, spec.CallToAction)
+			}
+			if !h.Submit("I offer to share the cookie.") {
+				t.Errorf("h.Submit() = false, want true")
+			}
+			break
+		}
+	}
+
+	res := <-done
+	if res.err != nil {
+		t.Fatalf("h.GetActionAttempt() returned unexpected error: %v", res.err)
+	}
+	if res.ans != "I offer to share the cookie." {
+		t.Errorf("h.GetActionAttempt() = %q, want %q", res.ans, "I offer to share the cookie.")
+	}
+
+	h.Close()
+	if _, err := h.GetActionAttempt(ctx, nil, spec); !errors.Is(err, component.ErrInputClosed) {
+		t.Errorf("h.GetActionAttempt() after Close() error = %v, want %v", err, component.ErrInputClosed)
+	}
+}
+
 type stubModel struct {
 	response   string
 	err        error

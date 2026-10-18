@@ -200,6 +200,12 @@ func (s *Sequential) Run(ctx context.Context, gm types.Entity, players []types.E
 			if err := gm.Observe(ctx, fmt.Sprintf("[Event] %s", resolution)); err != nil {
 				return fmt.Errorf("updating GM world state: %w", err)
 			}
+			if s.CheckpointPath != "" {
+				cp := s.Snapshot(step+1, gm, players)
+				if err := SaveCheckpoint(s.CheckpointPath, cp); err != nil {
+					return fmt.Errorf("saving checkpoint at skipped step %d: %w", step+1, err)
+				}
+			}
 			continue
 		}
 

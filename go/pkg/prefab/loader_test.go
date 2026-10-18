@@ -78,7 +78,11 @@ func TestConcatActComponent_GetActionAttempt(t *testing.T) {
 		"Memory":       "Saw a locked chest.",
 		"Timeline":     "1. Entered room.",
 	}
-	spec := types.ActionSpec{CallToAction: "What does Alice do?"}
+	spec := types.ActionSpec{
+		CallToAction: "What does Alice do?",
+		OutputType:   types.OutputChoice,
+		Options:      []string{"open chest", "leave room"},
+	}
 
 	got, err := comp.GetActionAttempt(ctx, contexts, spec)
 	if err != nil {
@@ -90,7 +94,7 @@ func TestConcatActComponent_GetActionAttempt(t *testing.T) {
 	if model.lastSystem != "You are Alice." {
 		t.Errorf("comp.GetActionAttempt() system prompt = %q, want %q", model.lastSystem, "You are Alice.")
 	}
-	for _, section := range []string{"## Memory\nSaw a locked chest.", "## Timeline\n1. Entered room.", "Task: What does Alice do?"} {
+	for _, section := range []string{"## Memory\nSaw a locked chest.", "## Timeline\n1. Entered room.", "Task: What does Alice do?", "Allowed options (reply with one): open chest, leave room"} {
 		if !strings.Contains(model.lastPrompt, section) {
 			t.Errorf("comp.GetActionAttempt() prompt = %q, want substring %q", model.lastPrompt, section)
 		}
