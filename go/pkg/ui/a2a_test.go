@@ -207,6 +207,66 @@ func TestServerControlAndScenariosAPI(t *testing.T) {
 	}
 }
 
+func TestA2AProxyEntity_ATETargetActorHeader(t *testing.T) {
+	ctx := t.Context()
+	bus := types.NewEventBus()
+	defer bus.Close()
+
+	mock := &mockEntity{name: "AXBot", act: "Running inside AX sandbox."}
+	executor := &ui.EntityExecutor{Entity: mock, Bus: bus}
+	handler := a2asrv.NewHandler(executor)
+
+	innerMux := http.NewServeMux()
+	innerMux.Handle("/invoke", a2asrv.NewJSONRPCHandler(handler))
+	card := &a2a.AgentCard{
+		Name:         mock.Name(),
+		Description:  "AX Sandboxed Agent",
+		Capabilities: a2a.AgentCapabilities{Streaming: true},
+	}
+	innerMux.Handle(a2asrv.WellKnownAgentCardPath, a2asrv.NewStaticAgentCardHandler(card))
+
+	var receivedTargets []string
+	routerMiddleware := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		target := r.Header.Get("ate-target-actor")
+		if target == "" {
+			http.Error(w, "missing ate-target-actor header", http.StatusBadGateway)
+			return
+		}
+		receivedTargets = append(receivedTargets, target)
+		innerMux.ServeHTTP(w, r)
+	})
+
+	ts := httptest.NewServer(routerMiddleware)
+	defer ts.Close()
+
+	invokeURL := fmt.Sprintf("%s/invoke", ts.URL)
+	headers := map[string]string{"ate-target-actor": "default/agent-bob"}
+	proxy, err := entity.NewA2AProxyEntityWithHeaders(ctx, "AXBot", invokeURL, headers, bus)
+	if err != nil {
+		t.Fatalf("NewA2AProxyEntityWithHeaders(ctx, \"AXBot\", %q, %v, bus) returned unexpected error: %v", invokeURL, headers, err)
+	}
+
+	if err := proxy.Observe(ctx, "Sandbox initialized."); err != nil {
+		t.Fatalf("proxy.Observe(ctx, \"Sandbox initialized.\") returned unexpected error: %v", err)
+	}
+
+	gotAct, err := proxy.Act(ctx, types.ActionSpec{CallToAction: "Report status."})
+	if err != nil {
+		t.Fatalf("proxy.Act(ctx, spec) returned unexpected error: %v", err)
+	}
+	if gotAct != "Running inside AX sandbox." {
+		t.Errorf("proxy.Act(ctx, spec) = %q, want %q", gotAct, "Running inside AX sandbox.")
+	}
+	if len(receivedTargets) < 3 {
+		t.Errorf("len(receivedTargets) = %d, want >= 3 (card discovery + observe + act)", len(receivedTargets))
+	}
+	for i, got := range receivedTargets {
+		if got != "default/agent-bob" {
+			t.Errorf("receivedTargets[%d] = %q, want %q", i, got, "default/agent-bob")
+		}
+	}
+}
+
 func resolveA2ACLI(t *testing.T) string {
 	t.Helper()
 	if cliPath, err := exec.LookPath("a2acli"); err == nil {

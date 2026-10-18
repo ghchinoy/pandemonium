@@ -3,6 +3,7 @@ package prefab
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 
@@ -52,8 +53,15 @@ func LoadScenario(ctx context.Context, path string, model llm.Model, embedder ve
 	for i, ac := range scenario.Agents {
 		var agent types.Entity
 		if ac.URL != "" {
-			// Remote A2A Agent
-			agent, err = entity.NewA2AProxyEntity(ctx, ac.Name, ac.URL, bus)
+			// Remote A2A Agent (with optional AX ate-target-actor and custom headers)
+			headers := maps.Clone(ac.Headers)
+			if ac.ATETargetActor != "" {
+				if headers == nil {
+					headers = make(map[string]string)
+				}
+				headers["ate-target-actor"] = ac.ATETargetActor
+			}
+			agent, err = entity.NewA2AProxyEntityWithHeaders(ctx, ac.Name, ac.URL, headers, bus)
 			if err != nil {
 				return nil, fmt.Errorf("loading remote agent %q: %w", ac.Name, err)
 			}

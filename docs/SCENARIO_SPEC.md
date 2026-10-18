@@ -46,6 +46,8 @@ Describes the participants.
 - **Local Agents**: Require a `persona` (and optional `goal`). They use the built-in "Three Key Questions" prefab (`SituationPerception`, `SelfPerception`, `PersonBySituation`, plus `ReflectionComponent`).
 - **`formative_memories`**: A list of strings representing pre-existing knowledge or background (e.g., "I have lived here 10 years"). These are injected into the agent's memory store at boot.
 - **Remote Agents**: Use the `url` field. Pandemonium will fetch their **Agent Card** via A2A and orchestrate them over the network.
+    - **`ate_target_actor`** *(optional)*: Sets the `ate-target-actor: <atespace>/<task>` HTTP header for routing through AX's `atenet-router` (which also auto-resumes suspended AX tasks on demand).
+    - **`headers`** *(optional)*: A map of custom HTTP headers attached to both `AgentCard` resolution and JSON-RPC A2A requests.
 
 ### 5. Engine Settings (`settings`)
 - **`engine`**:

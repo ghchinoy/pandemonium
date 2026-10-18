@@ -1,0 +1,42 @@
+// Pandemonium + A2A v2 + AX three-layer distributed architecture.
+digraph PandemoniumAXA2A {
+  label = "Pandemonium · A2A v2 · AX layered architecture";
+  rankdir = LR;
+  ranksep = 0.7;
+  nodesep = 0.4;
+
+  subgraph cluster_Pandemonium {
+    label = "Layer 3 · Pandemonium Orchestrator (Cognitive & Social Loop)";
+    Engine [label="Simulation Engine\nSequential · Simultaneous · Async", class="primary"];
+    GM     [label="Game Master\nLLM or RulebookGM", class="agent-violet"];
+    Proxy  [label="A2AProxyEntity\nate-target-actor header", class="emphasis"];
+    Bus    [label="EventBus\nTUI · Web · JSONL", class="code"];
+  }
+
+  subgraph cluster_A2A {
+    label = "Layer 2 · A2A v2 Wire & Routing Boundary";
+    class = "accent";
+    Router [label="atenet-router / ate-local\nauto-resume on demand", class="emphasis"];
+    Card   [label="AgentCard\n/.well-known/agent-card.json", class="note code"];
+  }
+
+  subgraph cluster_AX {
+    label = "Layer 1 · AX Sandbox (Task + Workspace + Model)";
+    Runner    [label="ax-task-runner (PID 1)\n/healthz · /readyz · ax ssh", class="code"];
+    AgentNode [label="cmd/agent-node\nEntityExecutor + BaseEntity", class="agent-teal"];
+    Workspace [label="/workspace\nmemories.jsonl · Git · MCP · Skills", class="store"];
+  }
+
+  Engine -> GM    [label="orchestrate", class="muted"];
+  Engine -> Proxy [label="Observe / Act", class="primary"];
+  Engine -> Bus   [label="events", class="async"];
+
+  Proxy -> Router [label="JSON-RPC + ate-target-actor", class="primary"];
+  Router -> Card  [label="resolve card", class="muted"];
+  Router -> AgentNode [label="SendMessage /\nSendStreamingMessage", class="primary"];
+
+  Runner -> AgentNode    [label="supervises", class="muted"];
+  AgentNode -> Workspace [label="FileStore / MarkdownStore"];
+  AgentNode -> Proxy     [label="TaskArtifactUpdateEvent\n(reasoning trace)", class="async", constraint=false];
+  Proxy -> Bus           [label="EventThought", class="async", constraint=false];
+}

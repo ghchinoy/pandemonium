@@ -1,0 +1,8 @@
+name: "Bob"
+persona: "A skeptical journalist investigating the winter storm from an isolated AX sandbox."
+goal: "Uncover the truth about the storm while rationing resources."
+storage:
+  type: "file"
+  path: "/workspace/bob_memories.jsonl"
+formative_memories:
+  - "Bob arrived at The Rusty Anchor with a notebook and a portable radio."

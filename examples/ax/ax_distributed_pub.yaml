@@ -1,0 +1,23 @@
+name: "AX-Sandboxed Distributed Pub"
+description: "A hybrid simulation where Alice runs locally and Bob runs inside an AX Task sandbox over A2A v2."
+premise: "Alice and Bob are discussing the blizzard in 'The Rusty Anchor'. Bob is hosted inside an isolated AX Task container."
+world_facts:
+  - "The location is 'The Rusty Anchor' pub."
+  - "Alice is the local baker."
+  - "Bob is a visiting journalist running inside an AX sandbox."
+agents:
+  - name: "Alice"
+    persona: "An optimistic baker who believes in sharing."
+    goal: "Keep everyone's spirits up during the blizzard."
+  - name: "Bob"
+    # When using ate-local on macOS, replace 127.0.0.1:9001 with the container's
+    # vmnet IP from `ax get tasks` (e.g. http://192.168.64.x:9001/invoke).
+    # When routing through AX's cluster atenet-router, point url at the router
+    # (e.g. http://localhost:8001/invoke) and set ate_target_actor below.
+    url: "http://127.0.0.1:9001/invoke"
+    ate_target_actor: "default/agent-bob"
+settings:
+  engine: "sequential"
+  min_steps: 2
+  max_steps: 4
+  strategy: "rotation"

@@ -19,6 +19,7 @@ import (
 type A2AProxyEntity struct {
 	EntityName string
 	URL        string
+	Headers    map[string]string
 	Client     *a2aclient.Client
 	Bus        *types.EventBus
 	ContextID  string
@@ -27,17 +28,35 @@ type A2AProxyEntity struct {
 
 // NewA2AProxyEntity initializes a remote agent proxy.
 func NewA2AProxyEntity(ctx context.Context, name, url string, bus *types.EventBus) (*A2AProxyEntity, error) {
+	return NewA2AProxyEntityWithHeaders(ctx, name, url, nil, bus)
+}
+
+// NewA2AProxyEntityWithHeaders initializes a remote agent proxy that attaches custom HTTP headers
+// (such as AX's "ate-target-actor: <atespace>/<task>") to both AgentCard discovery and JSON-RPC calls.
+func NewA2AProxyEntityWithHeaders(ctx context.Context, name, url string, headers map[string]string, bus *types.EventBus) (*A2AProxyEntity, error) {
 	baseURL := strings.TrimSuffix(url, "/invoke")
 
+	transport := http.DefaultTransport
+	if len(headers) > 0 {
+		transport = &headerRoundTripper{
+			base:    http.DefaultTransport,
+			headers: maps.Clone(headers),
+		}
+	}
+
 	// Connectivity Check: Fetch and validate the public Agent Card via the A2A resolver.
-	httpClient := &http.Client{Timeout: 5 * time.Second}
-	resolver := agentcard.NewResolver(httpClient)
+	discoveryClient := &http.Client{
+		Timeout:   5 * time.Second,
+		Transport: transport,
+	}
+	resolver := agentcard.NewResolver(discoveryClient)
 	if _, err := resolver.Resolve(ctx, baseURL); err != nil {
 		return nil, fmt.Errorf("resolving agent card for %q at %q: %w", name, baseURL, err)
 	}
 
-	// Create client with JSON-RPC transport
-	factory := a2aclient.NewFactory(a2aclient.WithJSONRPCTransport(nil))
+	// Create client with JSON-RPC transport preserving custom headers
+	rpcClient := &http.Client{Transport: transport}
+	factory := a2aclient.NewFactory(a2aclient.WithJSONRPCTransport(rpcClient))
 	endpoints := []*a2a.AgentInterface{
 		a2a.NewAgentInterface(url, a2a.TransportProtocolJSONRPC),
 	}
@@ -50,6 +69,7 @@ func NewA2AProxyEntity(ctx context.Context, name, url string, bus *types.EventBu
 	return &A2AProxyEntity{
 		EntityName: name,
 		URL:        url,
+		Headers:    maps.Clone(headers),
 		Client:     client,
 		Bus:        bus,
 		Metadata:   make(map[string]any),
@@ -169,4 +189,17 @@ func (e *A2AProxyEntity) Act(ctx context.Context, spec types.ActionSpec) (string
 	}
 
 	return finalAction, nil
+}
+
+type headerRoundTripper struct {
+	base    http.RoundTripper
+	headers map[string]string
+}
+
+func (h *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	cloned := req.Clone(req.Context())
+	for k, v := range h.headers {
+		cloned.Header.Set(k, v)
+	}
+	return h.base.RoundTrip(cloned)
 }

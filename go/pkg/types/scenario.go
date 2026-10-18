@@ -12,13 +12,15 @@ type Scenario struct {
 
 // AgentConfig defines an agent's starting state and storage rules.
 type AgentConfig struct {
-	Name              string        `yaml:"name"`
-	Persona           string        `yaml:"persona"`
-	Goal              string        `yaml:"goal,omitempty"`
-	URL               string        `yaml:"url,omitempty"`                // A2A endpoint URL
-	MemoryFile        string        `yaml:"memory_file,omitempty"`        // Legacy path support
-	Storage           StorageConfig `yaml:"storage,omitempty"`            // Modern strategy block
-	FormativeMemories []string      `yaml:"formative_memories,omitempty"` // Initial background knowledge
+	Name              string            `yaml:"name"`
+	Persona           string            `yaml:"persona"`
+	Goal              string            `yaml:"goal,omitempty"`
+	URL               string            `yaml:"url,omitempty"`                // A2A endpoint URL
+	ATETargetActor    string            `yaml:"ate_target_actor,omitempty"`   // AX atenet-router target ("<atespace>/<task>")
+	Headers           map[string]string `yaml:"headers,omitempty"`            // Optional custom HTTP headers for A2A requests
+	MemoryFile        string            `yaml:"memory_file,omitempty"`        // Legacy path support
+	Storage           StorageConfig     `yaml:"storage,omitempty"`            // Modern strategy block
+	FormativeMemories []string          `yaml:"formative_memories,omitempty"` // Initial background knowledge
 }
 
 // StorageConfig defines the persistence strategy for an agent (Memory, File, or Markdown).

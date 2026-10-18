@@ -31,11 +31,12 @@ Pandemonium supports two execution modes out of the box:
 | **03** | [Orchestrating a Distributed Simulation over A2A](03-distributed-simulation.md) | Connect a local orchestrator (`cmd/pandemonium`) to a remote agent node (`cmd/agent-node`) using `distributed_pub.yaml` and verify cross-process trace tunneling. |
 | **04** | [Custom Scenarios, Turn Strategies & Persistent Memory](04-custom-scenarios-and-memory.md) | Author a custom scenario YAML using `rotation` turn-taking, `formative_memories`, persistent `file` (JSONL) and `markdown` memory stores, and JSON checkpointing (`-checkpoint` / `-resume`). |
 | **05** | [Advanced Simulation Engines (`Simultaneous` & `Asynchronous`)](05-advanced-engines.md) | Run multi-actor concurrent rounds (`engine: "simultaneous"`) and independent per-entity goroutine loops (`engine: "asynchronous"`). |
+| **06** | [Running AX-Sandboxed Simulations over A2A v2](06-ax-sandboxed-simulation.md) | Run remote Pandemonium `agent-node`s inside AX `Task` sandboxes with `/workspace` memory persistence, `ate-target-actor` routing, and `ax suspend` / `ax resume`. |
 
 ---
 
 ## Related Documentation (Diátaxis Map)
 
-- **Explanation**: [Project Primer](../PRIMER.md) · [Go Adaptation Guide](../GO_ADAPTATION.md) · [Research Insights](../RESEARCH_INSIGHTS.md)
+- **Explanation**: [Project Primer](../PRIMER.md) · [Go Adaptation Guide](../GO_ADAPTATION.md) · [Combining Pandemonium, A2A v2 & AX](../AX_A2A_INTEGRATION.md) · [Research Insights](../RESEARCH_INSIGHTS.md)
 - **Reference**: [Scenario Specification](../SCENARIO_SPEC.md) · [A2A CLI Integration Guide](../A2ACLI_INTEGRATION.md)
 - **How-To Guides**: [Audio Story Recreation Guide](../stories/RECREATION_GUIDE.md)

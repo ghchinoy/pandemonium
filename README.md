@@ -97,9 +97,11 @@ This project uses **bd (beads)** for issue tracking.
   - [03: Orchestrating a Distributed Simulation over A2A](docs/tutorials/03-distributed-simulation.md)
   - [04: Custom Scenarios, Turn Strategies & Persistent Memory](docs/tutorials/04-custom-scenarios-and-memory.md)
   - [05: Advanced Simulation Engines (`Simultaneous` & `Asynchronous`)](docs/tutorials/05-advanced-engines.md)
+  - [06: Running AX-Sandboxed Simulations over A2A v2](docs/tutorials/06-ax-sandboxed-simulation.md)
 - **Explanation & Architecture**:
   - [Project Primer](docs/PRIMER.md) - The TRPG analogy and high-level concepts.
   - [Go Adaptation Guide](docs/GO_ADAPTATION.md) - Technical implementation and roadmap.
+  - [Combining Pandemonium, A2A v2, and AX](docs/AX_A2A_INTEGRATION.md) - Layered architecture and integration perspectives.
   - [Research Insights](docs/RESEARCH_INSIGHTS.md) - Deep dive into foundational papers.
 - **Reference & How-To Guides**:
   - [Scenario Specification](docs/SCENARIO_SPEC.md) - YAML schema for scenarios, agents, and storage.

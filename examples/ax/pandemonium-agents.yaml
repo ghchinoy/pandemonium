@@ -1,0 +1,35 @@
+# AX Manifests for Running Sandboxed Pandemonium A2A Agents
+#
+# Uses Option 1 (Zero Module Coupling):
+#   - ax-task-runner runs as PID 1 inside the sandbox (handling /healthz, /readyz,
+#     /workspace setup, and `ax ssh` guest services).
+#   - Pandemonium's `agent-node` binary runs as `spec.command`, storing its
+#     associative memory on the durable `/workspace` volume so memories survive
+#     `ax suspend` and `ax resume`.
+apiVersion: ax.io/v1alpha1
+kind: Workspace
+metadata:
+  name: pandemonium-workspace
+  atespace: default
+spec: {}
+---
+apiVersion: ax.io/v1alpha1
+kind: Task
+metadata:
+  name: agent-bob
+  atespace: default
+spec:
+  image: "debian:12"
+  command:
+    - "/workspace/agent-node"
+    - "-port"
+    - "9001"
+    - "-config"
+    - "/workspace/bob-agent.yaml"
+  env:
+    - name: ENVIRONMENT
+      value: "ax-sandbox"
+  workspaces:
+    - name: pandemonium-workspace
+      path: "/workspace"
+  debug: true # Enables `ax ssh agent-bob` to inspect /workspace/bob_memories.jsonl
